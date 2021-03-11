@@ -39,7 +39,10 @@ data class Vec(var x: Int = 0, var y: Int = 0) {
     constructor(notation: String) : this(notation[0] - 'a', notation[1] - '1')
 }
 
-data class Piece(var vec: Vec = Vec(), var kind: Char = 'K') {
+data class Piece(
+    val vec: MutableState<Vec> = mutableStateOf(Vec()),
+    val kind: MutableState<Char> = mutableStateOf('p')
+) {
     companion object {
         val drawableImageResources = mapOf(
             'R' to R.drawable.wr,
@@ -58,14 +61,15 @@ data class Piece(var vec: Vec = Vec(), var kind: Char = 'K') {
     }
 
     val image: Int
-        get() = drawableImageResources[kind] ?: R.drawable.bn
+        get() = drawableImageResources[kind.value] ?: R.drawable.bn
 
-    constructor(notation: String) : this(Vec(notation.substring(1))) {
-        kind = notation[0]
+    constructor(notation: String) : this() {
+        vec.value = Vec(notation.substring(1))
+        kind.value = notation[0]
     }
 
-    fun isWhite() = kind.isUpperCase()
-    fun isBlack() = kind.isLowerCase()
+    fun isWhite() = kind.value.isUpperCase()
+    fun isBlack() = kind.value.isLowerCase()
 }
 
 val pieces = listOf(
@@ -76,7 +80,7 @@ val pieces = listOf(
 ).flatten().map { Piece(it) }.let { pieces ->
     val map = mutableStateMapOf<Vec, Piece>()
     pieces.forEach {
-        map[it.vec] = it
+        map[it.vec.value] = it
     }
     return@let map
 }
@@ -96,16 +100,11 @@ class MainActivity : AppCompatActivity() {
                                 delay(500)
                                 val key = pieces.keys.random()
                                 val piece = pieces[key]?.let {
-                                    it.copy(
-                                        vec = Vec(
-                                            (it.vec.x + (-1..1).random()).coerceIn(0..7),
-                                            (it.vec.y + (-1..1).random()).coerceIn(0..7)
+                                    it.vec.value = Vec(
+                                            (it.vec.value.x + (-1..1).random()).coerceIn(0..7),
+                                            (it.vec.value.y + (-1..1).random()).coerceIn(0..7)
                                         )
-                                    )
-                                }?.let{
-                                    pieces[key] = it
                                 }
-
                             }
                         }
                         ChessBox(modifier = Modifier.padding(16.dp)) {
@@ -113,10 +112,10 @@ class MainActivity : AppCompatActivity() {
                             pieces.forEach {
                                 SnappyPiece(
                                     coroutineScope,
-                                    pos = it.value.vec,
+                                    pos = it.value.vec.value,
                                     image = it.value.image,
                                     onDragEnd = { x, y ->
-                                        pieces[it.key] = it.value.copy(vec = Vec(x, y))
+                                        it.value.vec.value = Vec(x, y)
                                     })
                             }
                         }
