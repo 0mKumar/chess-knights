@@ -94,11 +94,13 @@ class MainActivity : AppCompatActivity() {
                         coroutineScope.launch {
                             while (true) {
                                 delay(500)
-                                val piece = pieces.random().let {
-                                    it.vec.value = Vec(
-                                            (it.vec.value.x + (-1..1).random()).coerceIn(0..7),
-                                            (it.vec.value.y + (-1..1).random()).coerceIn(0..7)
-                                        )
+                                pieces.random().let { piece ->
+                                    val vec = Vec(
+                                        (piece.vec.value.x + (-1..1).random()).coerceIn(0..7),
+                                        (piece.vec.value.y + (-1..1).random()).coerceIn(0..7)
+                                    )
+                                    if(!pieces.any { it.vec.value == vec })
+                                        piece.vec.value = vec
                                 }
                             }
                         }
