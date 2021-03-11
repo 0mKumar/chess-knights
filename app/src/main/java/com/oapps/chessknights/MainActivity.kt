@@ -35,10 +35,13 @@ data class Vec(var x: Int = 0, var y: Int = 0) {
     constructor(notation: String) : this(notation[0] - 'a', notation[1] - '1')
 }
 
-data class Piece(
-    val vec: MutableState<Vec> = mutableStateOf(Vec()),
-    val kind: MutableState<Char> = mutableStateOf('p')
+class Piece(
+    vec: Vec = Vec(),
+    kind: Char = 'p'
 ) {
+    var vec by mutableStateOf(vec, structuralEqualityPolicy())
+    var kind by mutableStateOf(kind)
+
     companion object {
         val drawableImageResources = mapOf(
             'R' to R.drawable.wr,
@@ -57,15 +60,15 @@ data class Piece(
     }
 
     val image: Int
-        get() = drawableImageResources[kind.value] ?: R.drawable.bn
+        get() = drawableImageResources[kind] ?: R.drawable.bn
 
     constructor(notation: String) : this() {
-        vec.value = Vec(notation.substring(1))
-        kind.value = notation[0]
+        vec = Vec(notation.substring(1))
+        kind = notation[0]
     }
 
-    fun isWhite() = kind.value.isUpperCase()
-    fun isBlack() = kind.value.isLowerCase()
+    fun isWhite() = kind.isUpperCase()
+    fun isBlack() = kind.isLowerCase()
 }
 
 val pieces = listOf(
@@ -96,11 +99,11 @@ class MainActivity : AppCompatActivity() {
                                 delay(500)
                                 pieces.random().let { piece ->
                                     val vec = Vec(
-                                        (piece.vec.value.x + (-1..1).random()).coerceIn(0..7),
-                                        (piece.vec.value.y + (-1..1).random()).coerceIn(0..7)
+                                        (piece.vec.x + (-1..1).random()).coerceIn(0..7),
+                                        (piece.vec.y + (-1..1).random()).coerceIn(0..7)
                                     )
-                                    if(!pieces.any { it.vec.value == vec })
-                                        piece.vec.value = vec
+                                    if(!pieces.any { it.vec == vec })
+                                        piece.vec = vec
                                 }
                             }
                         }
@@ -109,10 +112,10 @@ class MainActivity : AppCompatActivity() {
                             pieces.forEach {
                                 SnappyPiece(
                                     coroutineScope,
-                                    pos = it.vec.value,
+                                    pos = it.vec,
                                     image = it.image,
                                     onDragEnd = { x, y ->
-                                        it.vec.value = Vec(x, y)
+                                        it.vec = Vec(x, y)
                                     })
                             }
                         }
