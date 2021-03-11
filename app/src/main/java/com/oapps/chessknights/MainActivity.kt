@@ -3,13 +3,14 @@ package com.oapps.chessknights
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.compose.setContent
+import androidx.annotation.DrawableRes
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Surface
@@ -31,10 +32,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.oapps.chessknights.ui.theme.*
 import com.oapps.chessknights.ui.theme.LocalChessColor
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
 import kotlin.math.roundToInt
 
 class MainActivity : AppCompatActivity() {
@@ -44,12 +42,30 @@ class MainActivity : AppCompatActivity() {
             ChessKnightsTheme {
                 Surface(color = MaterialTheme.colors.background) {
                     Column {
-                        Text(text = "Hello chess freak", Modifier.padding(16.dp))
+                        Text(text = "Header", Modifier.padding(16.dp))
                         val coroutineScope = rememberCoroutineScope()
+                        var pos by remember { mutableStateOf(IntOffset(0, 1)) }
+
+                        coroutineScope.launch {
+                            while (true) {
+                                delay(500)
+                                pos = pos.copy(
+                                    (pos.x + (-1..1).random()).coerceIn(0..7),
+                                    (pos.y + (-1..1).random()).coerceIn(0..7)
+                                )
+                            }
+                        }
                         ChessBox(modifier = Modifier.padding(16.dp)) {
                             ChessBackground(whiteBottom = true)
-                            SnappyPieceBox(coroutineScope)
+                            SnappyPiece(
+                                coroutineScope,
+                                pos = pos,
+                                image = R.drawable.wk,
+                                onDragEnd = { x, y ->
+                                    pos = IntOffset(x, y)
+                                })
                         }
+                        Text("Footer", Modifier.padding(16.dp))
                     }
                 }
             }
@@ -59,24 +75,35 @@ class MainActivity : AppCompatActivity() {
 
 
 @Composable
-fun BoxWithConstraintsScope.SnappyPieceBox(coroutineScope: CoroutineScope) {
-    val offsetX = remember { Animatable(0f) }
-    val offsetY = remember { Animatable(0f) }
-    val blockSize = with(LocalDensity.current) { maxWidth.toPx() / 8}
+fun BoxWithConstraintsScope.SnappyPiece(
+    coroutineScope: CoroutineScope,
+    @DrawableRes image: Int,
+    pos: IntOffset,
+    onDragEnd: ((x: Int, y: Int) -> Unit)? = null
+) {
+    val blockSize = with(LocalDensity.current) { maxWidth.toPx() / 8 }
     val offsetBound = with(LocalDensity.current) { maxWidth.toPx() * 7 / 8 }
-    Box(
+    val offsetX = remember { Animatable(blockSize * pos.x) }
+    val offsetY = remember { Animatable(blockSize * pos.y) }
+    if (pos.x * blockSize != offsetX.value || pos.y * blockSize != offsetY.value) {
+        coroutineScope.launch {
+            val toX = pos.x * blockSize
+            val toY = pos.y * blockSize
+            val x = async { offsetX.animateTo(toX) }
+            val y = async { offsetY.animateTo(toY) }
+            awaitAll(x, y)
+        }
+    }
+    Image(
+        painter = painterResource(id = image), contentDescription = "BB",
         Modifier
             .offset { IntOffset(offsetX.value.roundToInt(), offsetY.value.roundToInt()) }
             .fillMaxSize(0.125f)
             .pointerInput("drag") {
                 detectDragGestures(onDragEnd = {
-                    coroutineScope.launch {
-                        val toX = (offsetX.value / blockSize).roundToInt() * blockSize
-                        val toY = (offsetY.value / blockSize).roundToInt() * blockSize
-                        val x = async { offsetX.animateTo(toX) }
-                        val y = async { offsetY.animateTo(toY) }
-                        awaitAll(x, y)
-                    }
+                    val x = (offsetX.value / blockSize).roundToInt()
+                    val y = (offsetY.value / blockSize).roundToInt()
+                    onDragEnd?.invoke(x, y)
                 }) { change, dragAmount ->
                     change.consumeAllChanges()
                     coroutineScope.launch {
@@ -85,9 +112,7 @@ fun BoxWithConstraintsScope.SnappyPieceBox(coroutineScope: CoroutineScope) {
                     }
                 }
             }
-    ){
-        Image(painter = painterResource(id = R.drawable.bb), contentDescription = "BB")
-    }
+    )
 
 }
 
@@ -160,6 +185,6 @@ fun BackgroundPreview() {
     val coroutineScope = rememberCoroutineScope()
     ChessBox {
         ChessBackground(whiteBottom = false)
-        SnappyPieceBox(coroutineScope = coroutineScope)
+        SnappyPiece(coroutineScope = coroutineScope, image = R.drawable.bp, IntOffset(0, 0))
     }
 }
