@@ -91,20 +91,23 @@ class MainActivity : AppCompatActivity() {
                         Text(text = "Header", Modifier.padding(16.dp))
                         val coroutineScope = rememberCoroutineScope()
 
-//                        coroutineScope.launch {
-//                            while (true) {
-//                                delay(500)
-//                                val piece = pieces.values.random().let {
-//                                    it.copy(
-//                                        vec = Vec(
-//                                            it.vec.x + (-1..1).random().coerceIn(0..7),
-//                                            it.vec.y + (-1..1).random().coerceIn(0..7)
-//                                        )
-//                                    )
-//                                }
-//                                pieces[piece.vec] = piece
-//                            }
-//                        }
+                        coroutineScope.launch {
+                            while (true) {
+                                delay(500)
+                                val key = pieces.keys.random()
+                                val piece = pieces[key]?.let {
+                                    it.copy(
+                                        vec = Vec(
+                                            (it.vec.x + (-1..1).random()).coerceIn(0..7),
+                                            (it.vec.y + (-1..1).random()).coerceIn(0..7)
+                                        )
+                                    )
+                                }?.let{
+                                    pieces[key] = it
+                                }
+
+                            }
+                        }
                         ChessBox(modifier = Modifier.padding(16.dp)) {
                             ChessBackground(whiteBottom = true)
                             pieces.forEach {
