@@ -1,16 +1,13 @@
 package com.oapps.chessknights
 
 import android.os.Bundle
-import android.util.Log
 import androidx.activity.compose.setContent
 import androidx.annotation.DrawableRes
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Surface
@@ -22,7 +19,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.consumeAllChanges
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -78,11 +74,11 @@ val pieces = listOf(
     List(8) { "p${'a' + it}7" },
     listOf("ra8", "nb8", "bc8", "qd8", "ke8", "bf8", "ng8", "rh8")
 ).flatten().map { Piece(it) }.let { pieces ->
-    val map = mutableStateMapOf<Vec, Piece>()
+    val list = mutableStateListOf<Piece>()
     pieces.forEach {
-        map[it.vec.value] = it
+        list.add(it)
     }
-    return@let map
+    return@let list
 }
 
 class MainActivity : AppCompatActivity() {
@@ -98,8 +94,7 @@ class MainActivity : AppCompatActivity() {
                         coroutineScope.launch {
                             while (true) {
                                 delay(500)
-                                val key = pieces.keys.random()
-                                val piece = pieces[key]?.let {
+                                val piece = pieces.random().let {
                                     it.vec.value = Vec(
                                             (it.vec.value.x + (-1..1).random()).coerceIn(0..7),
                                             (it.vec.value.y + (-1..1).random()).coerceIn(0..7)
@@ -112,10 +107,10 @@ class MainActivity : AppCompatActivity() {
                             pieces.forEach {
                                 SnappyPiece(
                                     coroutineScope,
-                                    pos = it.value.vec.value,
-                                    image = it.value.image,
+                                    pos = it.vec.value,
+                                    image = it.image,
                                     onDragEnd = { x, y ->
-                                        it.value.vec.value = Vec(x, y)
+                                        it.vec.value = Vec(x, y)
                                     })
                             }
                         }
