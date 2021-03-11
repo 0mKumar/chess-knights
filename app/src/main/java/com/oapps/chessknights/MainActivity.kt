@@ -35,6 +35,52 @@ import com.oapps.chessknights.ui.theme.LocalChessColor
 import kotlinx.coroutines.*
 import kotlin.math.roundToInt
 
+data class Vec(var x: Int = 0, var y: Int = 0) {
+    constructor(notation: String) : this(notation[0] - 'a', notation[1] - '1')
+}
+
+data class Piece(var vec: Vec = Vec(), var kind: Char = 'K') {
+    companion object {
+        val drawableImageResources = mapOf(
+            'R' to R.drawable.wr,
+            'N' to R.drawable.wn,
+            'B' to R.drawable.wb,
+            'Q' to R.drawable.wq,
+            'K' to R.drawable.wk,
+            'P' to R.drawable.wp,
+            'r' to R.drawable.br,
+            'n' to R.drawable.bn,
+            'b' to R.drawable.bb,
+            'q' to R.drawable.bq,
+            'k' to R.drawable.bk,
+            'p' to R.drawable.bp,
+        )
+    }
+
+    val image: Int
+        get() = drawableImageResources[kind] ?: R.drawable.bn
+
+    constructor(notation: String) : this(Vec(notation.substring(1))) {
+        kind = notation[0]
+    }
+
+    fun isWhite() = kind.isUpperCase()
+    fun isBlack() = kind.isLowerCase()
+}
+
+val pieces = listOf(
+    listOf("Ra1", "Nb1", "Bc1", "Qd1", "Ke1", "Bf1", "Ng1", "Rh1"),
+    List(8) { "P${'a' + it}2" },
+    List(8) { "p${'a' + it}7" },
+    listOf("ra8", "nb8", "bc8", "qd8", "ke8", "bf8", "ng8", "rh8")
+).flatten().map { Piece(it) }.let { pieces ->
+    val map = mutableStateMapOf<Vec, Piece>()
+    pieces.forEach {
+        map[it.vec] = it
+    }
+    return@let map
+}
+
 class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -44,26 +90,32 @@ class MainActivity : AppCompatActivity() {
                     Column {
                         Text(text = "Header", Modifier.padding(16.dp))
                         val coroutineScope = rememberCoroutineScope()
-                        var pos by remember { mutableStateOf(IntOffset(0, 1)) }
 
-                        coroutineScope.launch {
-                            while (true) {
-                                delay(500)
-                                pos = pos.copy(
-                                    (pos.x + (-1..1).random()).coerceIn(0..7),
-                                    (pos.y + (-1..1).random()).coerceIn(0..7)
-                                )
-                            }
-                        }
+//                        coroutineScope.launch {
+//                            while (true) {
+//                                delay(500)
+//                                val piece = pieces.values.random().let {
+//                                    it.copy(
+//                                        vec = Vec(
+//                                            it.vec.x + (-1..1).random().coerceIn(0..7),
+//                                            it.vec.y + (-1..1).random().coerceIn(0..7)
+//                                        )
+//                                    )
+//                                }
+//                                pieces[piece.vec] = piece
+//                            }
+//                        }
                         ChessBox(modifier = Modifier.padding(16.dp)) {
                             ChessBackground(whiteBottom = true)
-                            SnappyPiece(
-                                coroutineScope,
-                                pos = pos,
-                                image = R.drawable.wk,
-                                onDragEnd = { x, y ->
-                                    pos = IntOffset(x, y)
-                                })
+                            pieces.forEach {
+                                SnappyPiece(
+                                    coroutineScope,
+                                    pos = it.value.vec,
+                                    image = it.value.image,
+                                    onDragEnd = { x, y ->
+                                        pieces[it.key] = it.value.copy(vec = Vec(x, y))
+                                    })
+                            }
                         }
                         Text("Footer", Modifier.padding(16.dp))
                     }
@@ -78,7 +130,8 @@ class MainActivity : AppCompatActivity() {
 fun BoxWithConstraintsScope.SnappyPiece(
     coroutineScope: CoroutineScope,
     @DrawableRes image: Int,
-    pos: IntOffset,
+    modifier: Modifier = Modifier,
+    pos: Vec = Vec(),
     onDragEnd: ((x: Int, y: Int) -> Unit)? = null
 ) {
     val blockSize = with(LocalDensity.current) { maxWidth.toPx() / 8 }
@@ -96,7 +149,7 @@ fun BoxWithConstraintsScope.SnappyPiece(
     }
     Image(
         painter = painterResource(id = image), contentDescription = "BB",
-        Modifier
+        modifier = modifier
             .offset { IntOffset(offsetX.value.roundToInt(), offsetY.value.roundToInt()) }
             .fillMaxSize(0.125f)
             .pointerInput("drag") {
@@ -110,31 +163,6 @@ fun BoxWithConstraintsScope.SnappyPiece(
                         offsetX.snapTo((offsetX.value + dragAmount.x).coerceIn(0f, offsetBound))
                         offsetY.snapTo((offsetY.value + dragAmount.y).coerceIn(0f, offsetBound))
                     }
-                }
-            }
-    )
-
-}
-
-@Composable
-fun BoxWithConstraintsScope.Drag2DGestures() {
-    val offsetX = remember { mutableStateOf(0f) }
-    val offsetY = remember { mutableStateOf(0f) }
-    val offsetBound = with(LocalDensity.current) { maxWidth.toPx() * 7 / 8 }
-    Box(
-        Modifier
-            .offset { IntOffset(offsetX.value.roundToInt(), offsetY.value.roundToInt()) }
-            .background(Color.Blue)
-            .fillMaxSize(0.125f)
-            .pointerInput("drag") {
-                detectDragGestures(onDragEnd = {
-                    Log.d("MainKt", "Drag end")
-                }) { change, dragAmount ->
-                    change.consumeAllChanges()
-                    offsetX.value = (offsetX.value + dragAmount.x)
-                        .coerceIn(0f, offsetBound)
-                    offsetY.value = (offsetY.value + dragAmount.y)
-                        .coerceIn(0f, offsetBound)
                 }
             }
     )
@@ -163,11 +191,9 @@ fun ChessBox(
     content: @Composable BoxWithConstraintsScope.() -> Unit
 ) {
     val chessColors = ChessLightColorPalette
-
     val rememberedChessColors = remember {
         chessColors.copy()
     }
-
     CompositionLocalProvider(LocalChessColor provides rememberedChessColors) {
         Box(
             modifier
@@ -185,6 +211,6 @@ fun BackgroundPreview() {
     val coroutineScope = rememberCoroutineScope()
     ChessBox {
         ChessBackground(whiteBottom = false)
-        SnappyPiece(coroutineScope = coroutineScope, image = R.drawable.bp, IntOffset(0, 0))
+        SnappyPiece(coroutineScope = coroutineScope, image = R.drawable.bp, pos = Vec(0, 0))
     }
 }
