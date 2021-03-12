@@ -42,6 +42,9 @@ class Piece(
     var vec by mutableStateOf(vec, structuralEqualityPolicy())
     var kind by mutableStateOf(kind)
 
+    val offsetX = Animatable(vec.x.toFloat())
+    val offsetY = Animatable(vec.y.toFloat())
+
     companion object {
         val drawableImageResources = mapOf(
             'R' to R.drawable.wr,
@@ -62,10 +65,7 @@ class Piece(
     val image: Int
         get() = drawableImageResources[kind] ?: R.drawable.bn
 
-    constructor(notation: String) : this() {
-        vec = Vec(notation.substring(1))
-        kind = notation[0]
-    }
+    constructor(notation: String) : this(Vec(notation.substring(1)), notation[0])
 
     fun isWhite() = kind.isUpperCase()
     fun isBlack() = kind.isLowerCase()
@@ -77,9 +77,9 @@ val pieces = listOf(
     List(8) { "p${'a' + it}7" },
     listOf("ra8", "nb8", "bc8", "qd8", "ke8", "bf8", "ng8", "rh8")
 ).flatten().map { Piece(it) }.let { pieces ->
-    val list = mutableStateListOf<Piece>()
-    pieces.forEach {
-        list.add(it)
+    val list = mutableStateMapOf<Int, Piece>()
+    pieces.forEachIndexed { i, it ->
+        list[i] = it
     }
     return@let list
 }
@@ -94,29 +94,46 @@ class MainActivity : AppCompatActivity() {
                         Text(text = "Header", Modifier.padding(16.dp))
                         val coroutineScope = rememberCoroutineScope()
 
+//                        coroutineScope.launch {
+//                            while (true) {
+//                                delay(500)
+//                                pieces.keys.random().let { key ->
+//                                    val piece = pieces[key]!!
+//                                    val vec = Vec(
+//                                        (piece.vec.x + (-1..1).random()).coerceIn(0..7),
+//                                        (piece.vec.y + (-1..1).random()).coerceIn(0..7)
+//                                    )
+//                                    if (!pieces.any { it.value.vec == vec })
+//                                        piece.vec = vec
+//                                }
+//                            }
+//                        }
+
                         coroutineScope.launch {
                             while (true) {
-                                delay(500)
-                                pieces.random().let { piece ->
-                                    val vec = Vec(
-                                        (piece.vec.x + (-1..1).random()).coerceIn(0..7),
-                                        (piece.vec.y + (-1..1).random()).coerceIn(0..7)
-                                    )
-                                    if(!pieces.any { it.vec == vec })
-                                        piece.vec = vec
+                                delay(1000)
+                                val vec = Vec((0..7).random(), (0..7).random())
+                                if (!pieces.any { it.value.vec == vec }){
+                                    val piece = Piece(vec)
+                                    pieces[pieces.size] = piece
                                 }
                             }
                         }
+
                         ChessBox(modifier = Modifier.padding(16.dp)) {
                             ChessBackground(whiteBottom = true)
-                            pieces.forEach {
+                            pieces.keys.forEach {
+                                val piece = pieces[it]!!
                                 SnappyPiece(
                                     coroutineScope,
-                                    pos = it.vec,
-                                    image = it.image,
+                                    piece = piece,
+//                                    pos = piece.vec,
+//                                    image = piece.image,
                                     onDragEnd = { x, y ->
-                                        it.vec = Vec(x, y)
-                                    })
+                                        piece.vec = Vec(x, y)
+//                                        pieces[pieces.size] = Piece("Ke6")
+                                    }
+                                )
                             }
                         }
                         Text("Footer", Modifier.padding(16.dp))
@@ -131,39 +148,47 @@ class MainActivity : AppCompatActivity() {
 @Composable
 fun BoxWithConstraintsScope.SnappyPiece(
     coroutineScope: CoroutineScope,
-    @DrawableRes image: Int,
+    piece: Piece,
+//    @DrawableRes image: Int,
     modifier: Modifier = Modifier,
-    pos: Vec = Vec(),
+//    pos: Vec = Vec(),
     onDragEnd: ((x: Int, y: Int) -> Unit)? = null
 ) {
+    val pos = piece.vec
+    val image = piece.image
     val blockSize = with(LocalDensity.current) { maxWidth.toPx() / 8 }
     val offsetBound = with(LocalDensity.current) { maxWidth.toPx() * 7 / 8 }
-    val offsetX = remember { Animatable(blockSize * pos.x) }
-    val offsetY = remember { Animatable(blockSize * pos.y) }
-    if (pos.x * blockSize != offsetX.value || pos.y * blockSize != offsetY.value) {
+//    val offsetX = remember { Animatable(pos.x.toFloat()) }
+//    val offsetY = remember { Animatable(pos.y.toFloat()) }
+    val offsetX = piece.offsetX
+    val offsetY = piece.offsetY
+    if (pos.x.toFloat() != offsetX.value || pos.y.toFloat() != offsetY.value) {
         coroutineScope.launch {
-            val toX = pos.x * blockSize
-            val toY = pos.y * blockSize
+            val toX = pos.x.toFloat()
+            val toY = pos.y.toFloat()
             val x = async { offsetX.animateTo(toX) }
             val y = async { offsetY.animateTo(toY) }
             awaitAll(x, y)
+//            val x = async { offsetX.snapTo(toX) }
+//            val y = async { offsetY.snapTo(toY) }
+//            awaitAll(x, y)
         }
     }
     Image(
         painter = painterResource(id = image), contentDescription = "BB",
         modifier = modifier
-            .offset { IntOffset(offsetX.value.roundToInt(), offsetY.value.roundToInt()) }
+            .offset { IntOffset((blockSize * offsetX.value).roundToInt(), (blockSize * offsetY.value).roundToInt()) }
             .fillMaxSize(0.125f)
             .pointerInput("drag") {
                 detectDragGestures(onDragEnd = {
-                    val x = (offsetX.value / blockSize).roundToInt()
-                    val y = (offsetY.value / blockSize).roundToInt()
+                    val x = offsetX.value.roundToInt()
+                    val y = offsetY.value.roundToInt()
                     onDragEnd?.invoke(x, y)
                 }) { change, dragAmount ->
                     change.consumeAllChanges()
                     coroutineScope.launch {
-                        offsetX.snapTo((offsetX.value + dragAmount.x).coerceIn(0f, offsetBound))
-                        offsetY.snapTo((offsetY.value + dragAmount.y).coerceIn(0f, offsetBound))
+                        offsetX.snapTo((offsetX.value + dragAmount.x / blockSize).coerceIn(0f, 7f))
+                        offsetY.snapTo((offsetY.value + dragAmount.y / blockSize).coerceIn(0f, 7f))
                     }
                 }
             }
@@ -213,6 +238,11 @@ fun BackgroundPreview() {
     val coroutineScope = rememberCoroutineScope()
     ChessBox {
         ChessBackground(whiteBottom = false)
-        SnappyPiece(coroutineScope = coroutineScope, image = R.drawable.bp, pos = Vec(0, 0))
+        SnappyPiece(
+            coroutineScope = coroutineScope,
+//            image = R.drawable.bp,
+//            pos = Vec(0, 0),
+            piece = Piece("Ka1")
+        )
     }
 }
