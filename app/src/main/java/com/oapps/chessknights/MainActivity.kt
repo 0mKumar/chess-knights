@@ -2,18 +2,27 @@ package com.oapps.chessknights
 
 import android.os.Bundle
 import android.util.Log
+import android.view.View
+import android.view.Window
 import androidx.activity.compose.setContent
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.Surface
-import androidx.compose.material.Text
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.oapps.chessknights.ui.chess.ChessBackground
 import com.oapps.chessknights.ui.chess.ChessBox
 import com.oapps.chessknights.ui.chess.ChessPiece
@@ -22,19 +31,45 @@ import kotlinx.coroutines.*
 
 val TAG = "Compose"
 
-var whiteBottom = false
-
 class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         chess.state.resetCastling("KkQq")
         setContent {
-            ChessKnightsTheme {
-                Surface(color = MaterialTheme.colors.background) {
-                    Column {
-                        Text(text = "Header", Modifier.padding(16.dp))
-                        ChessBoard(whiteBottom)
-                        Text("Footer", Modifier.padding(16.dp))
+            ChessKnightsTheme(window) {
+                Scaffold(
+                    topBar = {
+                        TopAppBar(
+                            title = {
+                                Text(
+                                    "Knight Chess",
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    fontSize = 24.sp,
+                                    color = Color.White
+                                )
+                            },
+                            actions = {
+                                Icon(
+                                    painterResource(id = R.drawable.ic_twotone_flip_camera_android_24),
+                                    ""
+                                )
+                            }
+                        )
+                    },
+                ) {
+                    Surface(color = MaterialTheme.colors.background) {
+                        val whiteBottom = remember { mutableStateOf(true) }
+                        Column(Modifier.padding(16.dp)) {
+                            Button(onClick = { whiteBottom.value = !whiteBottom.value }) {
+                                Icon(
+                                    painterResource(id = R.drawable.ic_twotone_flip_camera_android_24),
+                                    "Flip"
+                                )
+                                Text("Flip board", Modifier.padding(start = 8.dp))
+                            }
+                            ChessBoard(whiteBottom)
+                        }
                     }
                 }
             }
@@ -42,13 +77,12 @@ class MainActivity : AppCompatActivity() {
     }
 }
 
-
 @Composable
-private fun ChessBoard(whiteBottom: Boolean) {
+private fun ChessBoard(whiteBottom: MutableState<Boolean>) {
     val coroutineScope = rememberCoroutineScope()
 
-    ChessBox(modifier = Modifier.padding(16.dp)) {
-        ChessBackground()
+    ChessBox(modifier = Modifier.padding(vertical = 16.dp)) {
+        ChessBackground(Modifier.clip(RoundedCornerShape(percent = 1)))
         ChessClickBase(coroutineScope, whiteBottom)
         ChessPiecesLayer(coroutineScope, whiteBottom)
     }
@@ -57,19 +91,18 @@ private fun ChessBoard(whiteBottom: Boolean) {
 @Composable
 private fun BoxWithConstraintsScope.ChessPiecesLayer(
     coroutineScope: CoroutineScope,
-    whiteBottom: Boolean
+    whiteBottom: MutableState<Boolean>
 ) {
     chess.pieces.forEach { piece ->
         ChessPiece(
             piece = piece,
             size = maxWidth / 8,
             onDrag = {
-                piece.dragBy(coroutineScope, it)
+                piece.dragBy(coroutineScope, it.transformDirection(whiteBottom.value))
             },
             onDragEnd = {
                 piece.snap(coroutineScope)
             }, onClick = {
-                Log.d(TAG, "ChessBoard: press released on piece")
                 if (piece.selected) {
                     piece.selected = false
                 } else {
@@ -88,16 +121,22 @@ private fun BoxWithConstraintsScope.ChessPiecesLayer(
 }
 
 @Composable
-private fun BoxWithConstraintsScope.ChessClickBase(coroutineScope: CoroutineScope, whiteBottom: Boolean) {
+private fun BoxWithConstraintsScope.ChessClickBase(
+    coroutineScope: CoroutineScope,
+    whiteBottom: MutableState<Boolean>
+) {
     Box(
         modifier = Modifier
             .fillMaxSize()
             .pointerInput(Unit) {
                 detectTapGestures(
                     onPress = { it ->
-                        val offset = it.transform(whiteBottom, Offset(maxWidth.toPx(), maxHeight.toPx()))
+                        val offset =
+                            it.transform(
+                                whiteBottom.value,
+                                Offset(maxWidth.toPx(), maxHeight.toPx())
+                            )
                         if (tryAwaitRelease()) {
-                            Log.d(TAG, "ChessBoard: press released at $offset")
                             chess.pieces
                                 .find { it.selected }
                                 ?.let {

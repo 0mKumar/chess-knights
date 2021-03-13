@@ -1,12 +1,12 @@
 package com.oapps.chessknights.ui.chess
 
-import androidx.compose.foundation.*
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -16,7 +16,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
-import com.oapps.chessknights.transformDirection
 import com.oapps.chessknights.transformX
 import com.oapps.chessknights.transformY
 import com.oapps.chessknights.ui.theme.ChessLightColorPalette
@@ -35,7 +34,7 @@ fun ChessBackgroundPreview() {
             onDrag = {},
             onDragEnd = {},
             onClick = {},
-            whiteBottom = whiteBottom
+            whiteBottom = mutableStateOf(true)
         )
     }
 }
@@ -89,15 +88,15 @@ fun BoxWithConstraintsScope.ChessPiece(
     onDrag: (dragAmount: Offset) -> Unit,
     onDragEnd: () -> Unit,
     onClick: () -> Unit,
-    whiteBottom: Boolean
+    whiteBottom: MutableState<Boolean>
 ) {
     Image(
         painter = painterResource(id = piece.image),
         contentDescription = piece.name,
         modifier = modifier
             .offset(
-                (size * piece.offsetFractionX.value).transformX(whiteBottom, maxWidth * 7 / 8),
-                (size * piece.offsetFractionY.value).transformY(whiteBottom, maxHeight * 7 / 8)
+                (size * piece.offsetFractionX.value).transformX(whiteBottom.value, maxWidth * 7 / 8),
+                (size * piece.offsetFractionY.value).transformY(whiteBottom.value, maxHeight * 7 / 8)
             )
             .size(size, size)
             .pointerInput(piece) {
@@ -107,7 +106,6 @@ fun BoxWithConstraintsScope.ChessPiece(
                     change.consumeAllChanges()
                     onDrag(
                         Offset(dragAmount.x / size.toPx(), dragAmount.y / size.toPx())
-                            .transformDirection(whiteBottom)
                     )
                 }
             }

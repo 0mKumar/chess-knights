@@ -27,7 +27,9 @@ fun Offset.transform(whiteBottom: Boolean, max: Offset): Offset {
     return Offset(x.transformX(whiteBottom, max.x), y.transformY(whiteBottom, max.y))
 }
 
-fun Offset.transformDirection(whiteBottom: Boolean) = Offset(if(whiteBottom) x else -x, if(whiteBottom) -y else y)
+fun Offset.transformDirection(whiteBottom: Boolean): Offset {
+    return Offset(if(whiteBottom) x else -x, if(whiteBottom) -y else y)
+}
 
 fun Dp.transformX(whiteBottom: Boolean, max: Dp) = if (whiteBottom) this else max - this
 fun Dp.transformY(whiteBottom: Boolean, max: Dp) = if (whiteBottom) max - this else this

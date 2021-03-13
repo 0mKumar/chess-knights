@@ -1,21 +1,25 @@
 package com.oapps.chessknights.ui.theme
 
+import android.view.View
+import android.view.Window
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.darkColors
 import androidx.compose.material.lightColors
 import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.toArgb
 
 private val DarkColorPalette = darkColors(
-    primary = Purple200,
-    primaryVariant = Purple700,
+    primary = Blue200,
+    primaryVariant = Blue700,
     secondary = Teal200
 )
 
 private val LightColorPalette = lightColors(
-    primary = Purple500,
-    primaryVariant = Purple700,
+    primary = Blue500,
+    primaryVariant = Blue700,
     secondary = Teal200
 
     /* Other default colors to override
@@ -52,19 +56,26 @@ val LocalChessColor = staticCompositionLocalOf { ChessLightColorPalette }
 
 @Composable
 fun ChessKnightsTheme(
+    windows: Window,
     darkTheme: Boolean = isSystemInDarkTheme(),
-    content: @Composable() () -> Unit
+    content: @Composable () -> Unit
 ) {
+
     val colors = if (darkTheme) {
         DarkColorPalette
     } else {
         LightColorPalette
     }
 
+
     MaterialTheme(
         colors = colors,
         typography = Typography,
         shapes = Shapes,
-        content = content
-    )
+    ){
+        windows.statusBarColor = MaterialTheme.colors.surface.toArgb()
+        windows.navigationBarColor = MaterialTheme.colors.surface.toArgb()
+
+        content()
+    }
 }
