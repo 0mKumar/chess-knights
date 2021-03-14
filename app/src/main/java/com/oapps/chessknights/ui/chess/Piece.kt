@@ -9,8 +9,7 @@ import androidx.compose.runtime.structuralEqualityPolicy
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import com.oapps.chessknights.*
-import com.oapps.chessknights.logic.Move
-import com.oapps.chessknights.logic.MoveValidator
+import com.oapps.chessknights.logic.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -81,23 +80,38 @@ class Piece(
         return Rect(Offset(offsetFractionX.value * sizePx, offsetFractionY.value * sizePx), sizePx).contains(chessOffset)
     }
 
-    fun snap(coroutineScope: CoroutineScope, onFailed: (CoroutineScope.() -> Unit)? = null, onComplete: (CoroutineScope.(move: Move) -> Unit)) {
+    fun snap(coroutineScope: CoroutineScope, onFailed: (CoroutineScope.() -> Unit)? = null, onComplete: (CoroutineScope.(move: Move) -> Unit)? = null) {
         val to = Vec(offsetFractionX.value.roundToInt(), offsetFractionY.value.roundToInt())
-        moveTo(coroutineScope, to, onFailed, onComplete)
+        moveTo(coroutineScope, to, onFailed, false, onComplete)
     }
 
-    fun moveTo(coroutineScope: CoroutineScope, toActual: Vec, onFailed: (CoroutineScope.() -> Unit)? = null, onComplete: (CoroutineScope.(move: Move) -> Unit)) {
+    fun moveTo(coroutineScope: CoroutineScope, toActual: Vec, onFailed: (CoroutineScope.() -> Unit)? = null, skipCheck: Boolean = false, onComplete: (CoroutineScope.(move: Move) -> Unit)? = null) {
         val to = toActual.copy()
         coroutineScope.launch {
             async {
                 val move = Move(chess, this@Piece, to)
-                Log.d(TAG, "moveTo: trying to $move")
-                if(to.x !in 0..7 || to.y !in 0..7 || !MoveValidator.validateMove(chess, move)){
-                    move.props[Move.Props.INVALID_BOOLEAN] = true
-                    to.x = move.from.x
-                    to.y = move.from.y
-                    onFailed?.invoke(this)
-                    Log.d(TAG, "moveTo: $move failed, reverting to ${to.loc()}")
+                if(!skipCheck){
+                    Log.d(TAG, "moveTo: trying to $move")
+                    if(to.x !in 0..7 || to.y !in 0..7 || !MoveValidator.validateMove(chess, move)){
+                        move.props[Move.Props.INVALID_BOOLEAN] = true
+                        to.x = move.from.x
+                        to.y = move.from.y
+                        onFailed?.invoke(this)
+                        Log.d(TAG, "moveTo: $move failed, reverting to ${to.loc()}")
+                    }
+                    move.props.isCastling { who ->
+                        val rook = (vec + if(who.toUpperCase() == 'K') Vec(3, 0) else Vec(-4, 0))
+                            .let { chess.findPieceAt(it) }
+                        if(rook != null){
+                            val rookFinalPos = vec + if(who.toUpperCase() == 'K') Vec(1, 0) else Vec(-1, 0)
+                            rook.moveTo(coroutineScope, rookFinalPos, null, true)
+                        }else{
+                            to.x = move.from.x
+                            to.y = move.from.y
+                            onFailed?.invoke(this)
+                            Log.d(TAG, "moveTo: $move failed (rook not found!), reverting to ${to.loc()}")
+                        }
+                    }
                 }
 
                 val x = async { offsetFractionX.animateTo(to.x.toFloat()) }
@@ -105,9 +119,12 @@ class Piece(
                 awaitAll(x, y).let {
                     vec = to
                 }
-                if((move.props[Move.Props.INVALID_BOOLEAN] as? Boolean) != true) {
+                if(move.props.isValid()) {
                     Log.d(TAG, "moveTo: $move complete")
-                    onComplete.invoke(this, move)
+                    move.props.isAttack {
+                        chess.pieces.remove(it)
+                    }
+                    onComplete?.invoke(this, move)
                 }
             }
         }

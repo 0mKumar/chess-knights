@@ -142,11 +142,7 @@ fun BoxWithConstraintsScope.ChessPiecesLayer(
                 piece.dragBy(coroutineScope, it.transformDirection(whiteBottom.value))
             },
             onDragEnd = {
-                piece.snap(coroutineScope){ move ->
-                    move.props[Move.Props.ATTACKED_PIECE]?.let {
-                        chess.pieces.remove(it)
-                    }
-                }
+                piece.snap(coroutineScope)
             }, onClick = {
                 if (piece.selected) {
                     piece.selected = false
@@ -154,11 +150,7 @@ fun BoxWithConstraintsScope.ChessPiecesLayer(
                     val selectedPiece = chess.pieces.find { it.selected }
                     if (selectedPiece != null) {
                         selectedPiece.selected = false
-                        selectedPiece.moveTo(coroutineScope, piece.vec){ move ->
-                            move.props[Move.Props.ATTACKED_PIECE]?.let {
-                                chess.pieces.remove(it)
-                            }
-                        }
+                        selectedPiece.moveTo(coroutineScope, piece.vec)
                     } else {
                         piece.selected = true
                     }
@@ -196,11 +188,7 @@ fun BoxWithConstraintsScope.ChessClickBase(
                                         (offset.x / size).toInt(),
                                         (offset.y / size).toInt()
                                     )
-                                    selectedPiece.moveTo(coroutineScope, to) { move ->
-                                        (move.props[Move.Props.ATTACKED_PIECE] as? Piece)?.let {
-                                            chess.pieces.remove(it)
-                                        }
-                                    }
+                                    selectedPiece.moveTo(coroutineScope, to)
                                 }
                         }
                     },
