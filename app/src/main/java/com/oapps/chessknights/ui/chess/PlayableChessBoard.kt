@@ -12,6 +12,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -23,9 +24,12 @@ import androidx.compose.ui.input.pointer.consumeAllChanges
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.oapps.chessknights.*
 import com.oapps.chessknights.logic.Move
 import com.oapps.chessknights.ui.theme.ChessLightColorPalette
@@ -33,7 +37,7 @@ import com.oapps.chessknights.ui.theme.LocalChessColor
 import kotlinx.coroutines.CoroutineScope
 
 
-@Preview(showBackground = true, widthDp = 400, heightDp = 400)
+@Preview(showBackground = true)
 @Composable
 fun PlayableChessPreview() {
     val whiteBottom = remember { mutableStateOf(true) }
@@ -106,7 +110,7 @@ fun BoxWithConstraintsScope.ChessPiece(
                     maxHeight * 7 / 8
                 )
             )
-            .background(if(piece.selected) Color.Yellow.copy(alpha = 0.5f) else Color.Transparent)
+            .background(if (piece.selected) Color.Yellow.copy(alpha = 0.5f) else Color.Transparent)
             .size(size, size)
             .pointerInput(piece) {
                 detectDragGestures(
@@ -198,13 +202,53 @@ fun BoxWithConstraintsScope.ChessClickBase(
 }
 
 @Composable
-fun PlayableChessBoard(whiteBottom: MutableState<Boolean>, modifier: Modifier = Modifier) {
+fun PlayableChessBoard(whiteBottom: MutableState<Boolean>, modifier: Modifier = Modifier, showCoordinates: Boolean = false) {
     val coroutineScope = rememberCoroutineScope()
-    val shape = remember{ RoundedCornerShape(1) }
-
-    ChessBox(modifier = modifier.shadow(4.dp, shape)) {
-        ChessBackground(Modifier.clip(shape))
+    val shape = remember { RoundedCornerShape(1) }
+    var boardModifier = modifier
+    if(showCoordinates) boardModifier = boardModifier.padding(start = 12.dp, bottom = 16.dp)
+    ChessBox(boardModifier) {
+        ChessBackground(Modifier.clip(shape).shadow(16.dp, shape))
+        if(showCoordinates) {
+            Coordinates(whiteBottom)
+        }
         ChessClickBase(coroutineScope, whiteBottom)
         ChessPiecesLayer(coroutineScope, whiteBottom)
+    }
+}
+
+@Composable
+fun BoxWithConstraintsScope.Coordinates(
+    whiteBottom: MutableState<Boolean>,
+) {
+    CoordinatesFile(whiteBottom)
+    CoordinatesRank(whiteBottom)
+}
+
+@Composable
+private fun BoxWithConstraintsScope.CoordinatesRank(whiteBottom: MutableState<Boolean>) {
+    (if (whiteBottom.value) ('8' downTo '1') else ('1'..'8')).forEachIndexed { i, rank ->
+        Text(
+            text = "$rank",
+            lineHeight = 12.sp,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Left,
+            modifier = Modifier.offset((-12).dp, maxHeight / 8 * (i + 0.5f) - 8.dp)
+        )
+    }
+}
+
+@Composable
+private fun BoxWithConstraintsScope.CoordinatesFile(whiteBottom: MutableState<Boolean>) {
+    (if (whiteBottom.value) ('a'..'h') else ('h' downTo 'a')).forEachIndexed { i, file ->
+        Text(
+            text = "$file",
+            lineHeight = 12.sp,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.offset(maxWidth / 8 * (i + 0.5f), maxHeight)
+        )
     }
 }
