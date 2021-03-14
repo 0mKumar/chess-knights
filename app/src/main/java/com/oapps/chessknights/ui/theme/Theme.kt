@@ -49,7 +49,7 @@ class ChessColors(
 
 val ChessLightColorPalette = ChessColors(
     surfaceWhite = Blue50,
-    surfaceBlack = Blue600
+    surfaceBlack = Color(0xFF4859B9)
 )
 
 val LocalChessColor = staticCompositionLocalOf { ChessLightColorPalette }

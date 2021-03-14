@@ -9,3 +9,5 @@ val Teal200 = Color(0xFF03DAC5)
 
 val Blue50 = Color(0xFFE8EAF6)
 val Blue600 = Color(0xFF3F51B5)
+//val Blue400 = Color(0xFF4859B9)
+//val Blue400 = Color(0xFF000000)

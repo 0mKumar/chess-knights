@@ -1,5 +1,7 @@
 package com.oapps.chessknights.logic
 
+import android.util.Log
+import com.oapps.chessknights.TAG
 import com.oapps.chessknights.Vec
 import com.oapps.chessknights.ui.chess.Piece
 import kotlin.math.absoluteValue
@@ -21,7 +23,7 @@ object MoveValidator {
         chess: Chess,
         move: Move,
         pieceAtDest: Piece?
-    ) = (move.to - move.piece.vec).let { diff ->
+    ) = (move.to - move.from).let { diff ->
         when (move.piece.kind.toUpperCase()) {
             'R' -> isRookMove(diff)
             'B' -> isBishopMove(diff)
@@ -36,8 +38,8 @@ object MoveValidator {
     private fun isCastleMove(move: Move, diff: Vec): Boolean {
         if(diff.y != 0) return false
         if(diff.x.absoluteValue != 2) return false
-        return (move.piece.isWhite() && move.piece.vec.loc() == "e1") ||
-            (move.piece.isBlack() && move.piece.vec.loc() == "e8")
+        return (move.piece.isWhite() && move.from.loc() == "e1") ||
+            (move.piece.isBlack() && move.from.loc() == "e8")
     }
 
 
@@ -48,10 +50,11 @@ object MoveValidator {
         if (diff.x.absoluteValue > 1) return false
         if (diff.y.absoluteValue !in 1..2) return false
         if ((diff.y > 0 && move.piece.isBlack()) || (diff.y < 0 && move.piece.isWhite())) return false
-//        if(diff.y == 2 && )
+        if((diff.y == 2 && move.from.y != 1) || (diff.y == -2 && move.from.y != 6)) return false
         if(diff.x.absoluteValue == 1){
             if(pieceAtDest == null && move.to == chess.state.enPassantTarget) move.props[Move.Props.EN_PASSANT_STRING] = chess.state.enPassantString()
-            if(pieceAtDest == null || move.to != chess.state.enPassantTarget) return false
+            if(pieceAtDest == null && move.to != chess.state.enPassantTarget) return false
+            if(pieceAtDest != null) return true
         }else if(pieceAtDest != null) return false
         return true
     }
@@ -95,15 +98,15 @@ object MoveValidator {
     private fun moveContainsPieceInLine(
         chess: Chess,
         move: Move
-    ) = (move.to - move.piece.vec).let { diff ->
+    ) = (move.to - move.from).let { diff ->
         if (move.piece.kind.toUpperCase() in "QBR") {
             val dir = diff.direction()
-            containsPieceInLine(move.piece.vec, dir, move.to, chess)
+            containsPieceInLine(move.from, dir, move.to, chess)
         } else false
     }
 
     private fun moveViolatesCastlingRights(chess: Chess, move: Move): Boolean {
-        val diff = move.to - move.piece.vec
+        val diff = move.to - move.from
         if(move.piece.kind.toUpperCase() == 'K' && diff.x.absoluteValue == 2){
             var castlingType = if(diff.x > 0) 'K' else 'Q'
             if(move.piece.isBlack()) castlingType = castlingType.toLowerCase()
@@ -114,6 +117,10 @@ object MoveValidator {
     }
 
     fun validateMove(chess: Chess, move: Move): Boolean {
+        if(move.from == move.to) {
+            Log.d(TAG, "validateMove: to == dest")
+            return false
+        }
         val pieceAtDest = chess.findPieceAt(move.to)
         if(pieceAtDest != null) {
             move.props[Move.Props.ATTACKED_PIECE] = pieceAtDest

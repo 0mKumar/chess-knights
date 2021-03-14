@@ -1,5 +1,6 @@
 package com.oapps.chessknights.ui.chess
 
+import android.util.Log
 import androidx.compose.animation.core.Animatable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -7,10 +8,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.structuralEqualityPolicy
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
-import com.oapps.chessknights.R
-import com.oapps.chessknights.Vec
-import com.oapps.chessknights.chess
-import com.oapps.chessknights.dragBy
+import com.oapps.chessknights.*
 import com.oapps.chessknights.logic.Move
 import com.oapps.chessknights.logic.MoveValidator
 import kotlinx.coroutines.CoroutineScope
@@ -25,6 +23,10 @@ class Piece(
 ) {
     val name: String by lazy {
         pieceName[kind.toUpperCase()]?:"Unknown"
+    }
+
+    override fun toString(): String {
+        return "Piece($kind at ${vec.loc()})"
     }
 
     var selected by mutableStateOf(false)
@@ -79,29 +81,34 @@ class Piece(
         return Rect(Offset(offsetFractionX.value * sizePx, offsetFractionY.value * sizePx), sizePx).contains(chessOffset)
     }
 
-    fun snap(coroutineScope: CoroutineScope, onFailed: (CoroutineScope.() -> Unit)? = null, onComplete: (CoroutineScope.() -> Unit)? = null) {
+    fun snap(coroutineScope: CoroutineScope, onFailed: (CoroutineScope.() -> Unit)? = null, onComplete: (CoroutineScope.(move: Move) -> Unit)) {
         val to = Vec(offsetFractionX.value.roundToInt(), offsetFractionY.value.roundToInt())
-        moveTo(coroutineScope, to, onComplete, onFailed)
+        moveTo(coroutineScope, to, onFailed, onComplete)
     }
 
-    fun moveTo(coroutineScope: CoroutineScope, to: Vec, onFailed: (CoroutineScope.() -> Unit)? = null, onComplete: (CoroutineScope.() -> Unit)? = null) {
+    fun moveTo(coroutineScope: CoroutineScope, toActual: Vec, onFailed: (CoroutineScope.() -> Unit)? = null, onComplete: (CoroutineScope.(move: Move) -> Unit)) {
+        val to = toActual.copy()
         coroutineScope.launch {
             async {
                 val move = Move(chess, this@Piece, to)
+                Log.d(TAG, "moveTo: trying to $move")
                 if(to.x !in 0..7 || to.y !in 0..7 || !MoveValidator.validateMove(chess, move)){
-                    to.x = vec.x
-                    to.y = vec.y
+                    move.props[Move.Props.INVALID_BOOLEAN] = true
+                    to.x = move.from.x
+                    to.y = move.from.y
                     onFailed?.invoke(this)
+                    Log.d(TAG, "moveTo: $move failed, reverting to ${to.loc()}")
                 }
+
                 val x = async { offsetFractionX.animateTo(to.x.toFloat()) }
                 val y = async { offsetFractionY.animateTo(to.y.toFloat()) }
                 awaitAll(x, y).let {
-                    vec = Vec(
-                        offsetFractionX.value.roundToInt().coerceIn(0..7),
-                        offsetFractionY.value.roundToInt().coerceIn(0..7),
-                    )
+                    vec = to
                 }
-                onComplete?.invoke(this)
+                if((move.props[Move.Props.INVALID_BOOLEAN] as? Boolean) != true) {
+                    Log.d(TAG, "moveTo: $move complete")
+                    onComplete.invoke(this, move)
+                }
             }
         }
     }
