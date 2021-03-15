@@ -117,18 +117,23 @@ object MoveValidator {
     }
 
     fun validateMove(chess: Chess, move: Move): Boolean {
-        if(move.from == move.to) {
-            Log.d(TAG, "validateMove: to == dest")
-            return false
+        fun validateStep1(): Boolean{
+            if(move.from == move.to) {
+                Log.d(TAG, "validateMove: to == dest")
+                return false
+            }
+            val pieceAtDest = chess.findPieceAt(move.to)
+            if(pieceAtDest != null) {
+                move.props[Move.Props.ATTACKED_PIECE] = pieceAtDest
+            }
+            if(ownPieceAttacked(move, pieceAtDest)) return false
+            if(!moveMaybePossible(chess, move, pieceAtDest)) return false
+            if(moveContainsPieceInLine(chess, move)) return false
+            if(moveViolatesCastlingRights(chess, move)) return false
+            return true
         }
-        val pieceAtDest = chess.findPieceAt(move.to)
-        if(pieceAtDest != null) {
-            move.props[Move.Props.ATTACKED_PIECE] = pieceAtDest
-        }
-        if(ownPieceAttacked(move, pieceAtDest)) return false
-        if(!moveMaybePossible(chess, move, pieceAtDest)) return false
-        if(moveContainsPieceInLine(chess, move)) return false
-        if(moveViolatesCastlingRights(chess, move)) return false
+
+        if(!validateStep1()) return false
         return true
     }
 }

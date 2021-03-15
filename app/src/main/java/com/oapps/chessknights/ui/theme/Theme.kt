@@ -56,7 +56,7 @@ val LocalChessColor = staticCompositionLocalOf { ChessLightColorPalette }
 
 @Composable
 fun ChessKnightsTheme(
-    windows: Window,
+    windows: Window? = null,
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit
 ) {
@@ -73,9 +73,28 @@ fun ChessKnightsTheme(
         typography = Typography,
         shapes = Shapes,
     ){
-        windows.statusBarColor = MaterialTheme.colors.surface.toArgb()
-        windows.navigationBarColor = MaterialTheme.colors.surface.toArgb()
+        windows?.let {
+            windows.statusBarColor = MaterialTheme.colors.surface.toArgb()
+            windows.navigationBarColor = MaterialTheme.colors.surface.toArgb()
 
+            @Suppress("DEPRECATION")
+            if (MaterialTheme.colors.surface.luminance() > 0.5f) {
+                windows.decorView.systemUiVisibility = windows.decorView.systemUiVisibility or
+                        View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+            }else{
+                windows.decorView.systemUiVisibility = windows.decorView.systemUiVisibility and
+                        View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR.inv()
+            }
+
+            @Suppress("DEPRECATION")
+            if (MaterialTheme.colors.surface.luminance() > 0.5f) {
+                windows.decorView.systemUiVisibility = windows.decorView.systemUiVisibility or
+                        View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+            }else{
+                windows.decorView.systemUiVisibility = windows.decorView.systemUiVisibility and
+                        View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR.inv()
+            }
+        }
         content()
     }
 }

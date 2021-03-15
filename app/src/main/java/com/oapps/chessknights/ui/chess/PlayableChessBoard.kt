@@ -1,21 +1,18 @@
 package com.oapps.chessknights.ui.chess
 
 import android.util.Log
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.Button
+import androidx.compose.material.MaterialTheme
+import androidx.compose.material.Surface
 import androidx.compose.material.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -31,7 +28,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.oapps.chessknights.*
+import com.oapps.chessknights.R
 import com.oapps.chessknights.logic.Move
+import com.oapps.chessknights.ui.PlayerBanner
+import com.oapps.chessknights.ui.theme.ChessKnightsTheme
 import com.oapps.chessknights.ui.theme.ChessLightColorPalette
 import com.oapps.chessknights.ui.theme.LocalChessColor
 import kotlinx.coroutines.CoroutineScope
@@ -42,7 +42,19 @@ import kotlinx.coroutines.CoroutineScope
 fun PlayableChessPreview() {
     val whiteBottom = remember { mutableStateOf(true) }
 
-    PlayableChessBoard(whiteBottom = whiteBottom)
+    ChessKnightsTheme {
+        Column {
+            PlayerBanner(
+                "Opponent",
+                "(1579)",
+                "4:45",
+                Modifier.padding(bottom = 16.dp),
+                R.drawable.wp
+            )
+            PlayableChessBoard(whiteBottom = whiteBottom, showCoordinates = true)
+            PlayerBanner("Myself", "(3200)", "5:38", Modifier.padding(top = 16.dp), R.drawable.wp)
+        }
+    }
 }
 
 @Composable
@@ -69,21 +81,24 @@ fun ChessBox(
 fun BoxWithConstraintsScope.ChessBackground(modifier: Modifier = Modifier) {
     val palette = LocalChessColor.current
     val blockSize = with(LocalDensity.current) { maxWidth.toPx() / 8 }
-    Canvas(modifier = modifier
-        .matchParentSize(), onDraw = {
-        fun isWhite(x: Int, y: Int) = (x + y) % 2 == 0
+    val shape = remember { RoundedCornerShape(1) }
+    Surface(modifier.matchParentSize(), shape, elevation = 4.dp) {
+        Canvas(modifier = Modifier
+            .matchParentSize(), onDraw = {
+            fun isWhite(x: Int, y: Int) = (x + y) % 2 == 0
 
-        for (x in 0..7) {
-            for (y in 0..7) {
-                val color = if (isWhite(x, y)) palette.surfaceWhite else palette.surfaceBlack
-                drawRect(
-                    color,
-                    Offset(x * blockSize, y * blockSize),
-                    Size(blockSize, blockSize)
-                )
+            for (x in 0..7) {
+                for (y in 0..7) {
+                    val color = if (isWhite(x, y)) palette.surfaceWhite else palette.surfaceBlack
+                    drawRect(
+                        color,
+                        Offset(x * blockSize, y * blockSize),
+                        Size(blockSize, blockSize)
+                    )
+                }
             }
-        }
-    })
+        })
+    }
 }
 
 @Composable
@@ -135,7 +150,8 @@ fun BoxWithConstraintsScope.ChessPiece(
 @Composable
 fun BoxWithConstraintsScope.ChessPiecesLayer(
     coroutineScope: CoroutineScope,
-    whiteBottom: MutableState<Boolean>
+    whiteBottom: MutableState<Boolean>,
+    requestPromotionTo: ((Move) -> Unit)? = null
 ) {
     chess.pieces.sortBy { it.offsetFractionX.isRunning }
     chess.pieces.forEach { piece ->
@@ -146,7 +162,7 @@ fun BoxWithConstraintsScope.ChessPiecesLayer(
                 piece.dragBy(coroutineScope, it.transformDirection(whiteBottom.value))
             },
             onDragEnd = {
-                piece.snap(coroutineScope)
+                piece.snap(coroutineScope, requestPromotionTo = requestPromotionTo)
             }, onClick = {
                 if (piece.selected) {
                     piece.selected = false
@@ -154,7 +170,11 @@ fun BoxWithConstraintsScope.ChessPiecesLayer(
                     val selectedPiece = chess.pieces.find { it.selected }
                     if (selectedPiece != null) {
                         selectedPiece.selected = false
-                        selectedPiece.moveTo(coroutineScope, piece.vec)
+                        selectedPiece.moveTo(
+                            coroutineScope,
+                            piece.vec,
+                            requestPromotionTo = requestPromotionTo
+                        )
                     } else {
                         piece.selected = true
                     }
@@ -169,7 +189,8 @@ fun BoxWithConstraintsScope.ChessPiecesLayer(
 @Composable
 fun BoxWithConstraintsScope.ChessClickBase(
     coroutineScope: CoroutineScope,
-    whiteBottom: MutableState<Boolean>
+    whiteBottom: MutableState<Boolean>,
+    requestPromotionTo: ((Move) -> Unit)? = null
 ) {
     Box(
         modifier = Modifier
@@ -192,7 +213,11 @@ fun BoxWithConstraintsScope.ChessClickBase(
                                         (offset.x / size).toInt(),
                                         (offset.y / size).toInt()
                                     )
-                                    selectedPiece.moveTo(coroutineScope, to)
+                                    selectedPiece.moveTo(
+                                        coroutineScope,
+                                        to,
+                                        requestPromotionTo = requestPromotionTo
+                                    )
                                 }
                         }
                     },
@@ -202,19 +227,78 @@ fun BoxWithConstraintsScope.ChessClickBase(
 }
 
 @Composable
-fun PlayableChessBoard(whiteBottom: MutableState<Boolean>, modifier: Modifier = Modifier, showCoordinates: Boolean = false) {
+fun PlayableChessBoard(
+    whiteBottom: MutableState<Boolean>,
+    modifier: Modifier = Modifier,
+    showCoordinates: Boolean = false
+) {
     val coroutineScope = rememberCoroutineScope()
-    val shape = remember { RoundedCornerShape(1) }
     var boardModifier = modifier
-    if(showCoordinates) boardModifier = boardModifier.padding(start = 12.dp, bottom = 16.dp)
+    if (showCoordinates) boardModifier = boardModifier.padding(start = 12.dp, bottom = 16.dp)
+    val requestPromotesTo = remember { mutableStateOf(Pair(false, Move(chess, "a1a1"))) }
     ChessBox(boardModifier) {
-        ChessBackground(Modifier.clip(shape).shadow(16.dp, shape))
-        if(showCoordinates) {
+        ChessBackground()
+        if (showCoordinates) {
             Coordinates(whiteBottom)
         }
-        ChessClickBase(coroutineScope, whiteBottom)
-        ChessPiecesLayer(coroutineScope, whiteBottom)
+        val requestPromotionTo: (Move) -> Unit = { it: Move ->
+            requestPromotesTo.value = Pair(true, it)
+            Log.d(TAG, "PlayableChessBoard: got request to show dialog")
+        }
+        ChessClickBase(
+            coroutineScope,
+            whiteBottom = whiteBottom,
+            requestPromotionTo = requestPromotionTo
+        )
+        ChessPiecesLayer(coroutineScope, whiteBottom, requestPromotionTo = requestPromotionTo)
+        if (requestPromotesTo.value.first) {
+            RequestPromotionPiece(requestPromotesTo, whiteBottom)
+        }
     }
+}
+
+@Composable
+private fun BoxWithConstraintsScope.RequestPromotionPiece(requestPromotesTo: MutableState<Pair<Boolean, Move>>, whiteBottom: MutableState<Boolean>) {
+    val onClick: (Char) -> Unit = {
+        requestPromotesTo.value = Pair(false, requestPromotesTo.value.second)
+        requestPromotesTo.value.second.promotesTo = it
+    }
+    val size = maxWidth / 8
+    val white = requestPromotesTo.value.second.piece.isWhite()
+    fun Char.color(): Char {
+        return if (white) toUpperCase() else toLowerCase()
+    }
+
+    val shape = remember { RoundedCornerShape(4.dp) }
+    val piece = requestPromotesTo.value.second.piece
+    Surface(color = Color.White, elevation = 4.dp, shape = shape,
+        modifier = Modifier.offset(
+            x = (size * piece.vec.x).transformX(whiteBottom.value, maxWidth * 7 / 8),
+            y = if(piece.isBlack() xor whiteBottom.value.not()) (size * 4).transformY(whiteBottom.value, maxHeight) else 0.dp
+        )){
+        Column{
+            "QRBN".let { if(piece.isBlack() xor whiteBottom.value) it else it.reversed() }.forEach{
+                PromotionPieceButton(size, it.color(), onClick = onClick)
+            }
+        }
+    }
+}
+
+@Composable
+private fun PromotionPieceButton(
+    size: Dp,
+    pieceType: Char,
+    onClick: (Char) -> Unit
+) {
+    Image(
+        painterResource(id = Piece.drawableImageResources[pieceType] ?: R.drawable.bn),
+        "",
+        Modifier
+            .size(size)
+            .clickable {
+                onClick(pieceType)
+            }
+    )
 }
 
 @Composable
@@ -248,7 +332,7 @@ private fun BoxWithConstraintsScope.CoordinatesFile(whiteBottom: MutableState<Bo
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center,
-            modifier = Modifier.offset(maxWidth / 8 * (i + 0.5f), maxHeight)
+            modifier = Modifier.offset(maxWidth / 8 * (i + 0.5f), maxHeight + 2.dp)
         )
     }
 }

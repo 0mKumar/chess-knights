@@ -10,10 +10,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import com.oapps.chessknights.*
 import com.oapps.chessknights.logic.*
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
 import kotlin.math.roundToInt
 
 class Piece(
@@ -80,12 +77,12 @@ class Piece(
         return Rect(Offset(offsetFractionX.value * sizePx, offsetFractionY.value * sizePx), sizePx).contains(chessOffset)
     }
 
-    fun snap(coroutineScope: CoroutineScope, onFailed: (CoroutineScope.() -> Unit)? = null, onComplete: (CoroutineScope.(move: Move) -> Unit)? = null) {
+    fun snap(coroutineScope: CoroutineScope, onFailed: (CoroutineScope.() -> Unit)? = null, onComplete: (CoroutineScope.(move: Move) -> Unit)? = null, requestPromotionTo: ((move: Move) -> Unit)? = null) {
         val to = Vec(offsetFractionX.value.roundToInt(), offsetFractionY.value.roundToInt())
-        moveTo(coroutineScope, to, onFailed, false, onComplete)
+        moveTo(coroutineScope, to, onFailed, false, onComplete, requestPromotionTo)
     }
 
-    fun moveTo(coroutineScope: CoroutineScope, toActual: Vec, onFailed: (CoroutineScope.() -> Unit)? = null, skipCheck: Boolean = false, onComplete: (CoroutineScope.(move: Move) -> Unit)? = null) {
+    fun moveTo(coroutineScope: CoroutineScope, toActual: Vec, onFailed: (CoroutineScope.() -> Unit)? = null, skipCheck: Boolean = false, onComplete: (CoroutineScope.(move: Move) -> Unit)? = null, requestPromotionTo: ((move: Move) -> Unit)? = null) {
         val to = toActual.copy()
         coroutineScope.launch {
             async {
@@ -123,6 +120,17 @@ class Piece(
                     Log.d(TAG, "moveTo: $move complete")
                     move.props.isAttack {
                         chess.pieces.remove(it)
+                    }
+                    if(move.isPromotion()){
+                        if(move.promotesTo == null){
+                            requestPromotionTo?.invoke(move)
+                        }
+                        while (move.promotesTo == null){
+                            delay(16)
+                        }
+                        kind = (move.promotesTo?:'Q').let {
+                            if(isWhite()) it.toUpperCase() else it.toLowerCase()
+                        }
                     }
                     onComplete?.invoke(this, move)
                 }

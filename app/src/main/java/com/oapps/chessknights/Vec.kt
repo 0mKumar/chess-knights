@@ -3,6 +3,10 @@ package com.oapps.chessknights
 import kotlin.math.sign
 
 data class Vec(var x: Int = 0, var y: Int = 0) {
+    companion object{
+        val None = Vec(-1,-1)
+    }
+
     constructor(notation: String) : this(notation[0] - 'a', notation[1] - '1')
 
     fun loc() = "${'a' + x}${'1' + y}"

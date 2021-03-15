@@ -14,11 +14,18 @@ val SourceSansProFontFamily = FontFamily(
     Font(R.font.source_sans_pro_semibold, FontWeight(600))
 )
 
+val UbuntuFontFamily = FontFamily(
+    Font(R.font.ubuntu_light, FontWeight.Light),
+    Font(R.font.ubuntu, FontWeight.Normal),
+    Font(R.font.ubuntu_medium, FontWeight.Medium),
+    Font(R.font.ubuntu_bold, FontWeight.Bold),
+)
+
 // Set of Material typography styles to start with
 val Typography = Typography(
-    defaultFontFamily = SourceSansProFontFamily,
+    defaultFontFamily = UbuntuFontFamily,
     body1 = TextStyle(
-        fontFamily = SourceSansProFontFamily,
+        fontFamily = UbuntuFontFamily,
         fontWeight = FontWeight.Normal,
         fontSize = 16.sp
     )

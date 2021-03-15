@@ -5,6 +5,8 @@ import android.util.Log
 import androidx.activity.compose.setContent
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -13,6 +15,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.oapps.chessknights.ui.PlayerBanner
 import com.oapps.chessknights.ui.chess.*
 import com.oapps.chessknights.ui.theme.*
 
@@ -39,10 +42,19 @@ class MainActivity : AppCompatActivity() {
 
 @Composable
 fun AppContent(darkMode: MutableState<Boolean>) {
-    Surface(color = MaterialTheme.colors.background) {
+    Surface(color = MaterialTheme.colors.surface) {
         val whiteBottom = remember { mutableStateOf(true) }
         var showCoordinates by remember { mutableStateOf(true) }
-        Column(Modifier.padding(start = 8.dp, top = 16.dp, end = 8.dp)) {
+        val scrollState = rememberScrollState()
+        Column(
+            Modifier
+                .padding(start = 8.dp, end = 8.dp)
+                .verticalScroll(scrollState)
+        ) {
+            PlayerBanner("My Opponent", "(1360)", "4:40", Modifier.padding(bottom = 32.dp, top = 16.dp), R.drawable.bp)
+            PlayableChessBoard(whiteBottom, showCoordinates = showCoordinates)
+            PlayerBanner("Om Kumar", "(1459)", "4:35", Modifier.padding(top = 32.dp, bottom = 40.dp), R.drawable.wp, clockActive = true)
+
             TextButton(onClick = { whiteBottom.value = !whiteBottom.value }) {
                 Icon(
                     painterResource(id = R.drawable.ic_twotone_flip_camera_android_24),
@@ -61,23 +73,23 @@ fun AppContent(darkMode: MutableState<Boolean>) {
                 Text(text = if (darkMode.value) "Light mode" else "Dark mode", Modifier.padding(start = 8.dp))
             }
 
-            PlayableChessBoard(whiteBottom, Modifier.padding(vertical = 16.dp), showCoordinates)
             TextButton(onClick = {
                 Log.d(TAG, "AppContent: ${chess.generateFen()}")
-            }) {
+            }, Modifier.padding(top = 16.dp)) {
                 Text("Print fen", Modifier.padding(start = 8.dp))
             }
             TextButton(onClick = {
                 Log.d(TAG, "AppContent: ${chess.asciiBoard()}")
-            }) {
+            }, Modifier.padding(top = 16.dp)) {
                 Text("Print full board", Modifier.padding(start = 8.dp))
             }
             val coroutineScope = rememberCoroutineScope()
             TextButton(onClick = {
                 Log.d(TAG, "AppContent: ${chess.refreshPieces(coroutineScope)}")
-            }) {
+            }, Modifier.padding(top = 16.dp)) {
                 Text("Force refresh", Modifier.padding(start = 8.dp))
             }
+            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }
@@ -95,10 +107,7 @@ fun AppTopBar() {
             )
         },
         actions = {
-            Icon(
-                painterResource(id = R.drawable.ic_twotone_flip_camera_android_24),
-                ""
-            )
+
         }
     )
 }
