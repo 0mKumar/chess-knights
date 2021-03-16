@@ -133,6 +133,7 @@ object MoveValidator {
             return true
         }
 
+        // TODO: 15/03/21 Handle illegal castling
         if(!validateStep1()) return false
         return true
     }

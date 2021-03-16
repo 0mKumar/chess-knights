@@ -7,13 +7,10 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.Button
-import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Surface
 import androidx.compose.material.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -265,9 +262,6 @@ private fun BoxWithConstraintsScope.RequestPromotionPiece(requestPromotesTo: Mut
     }
     val size = maxWidth / 8
     val white = requestPromotesTo.value.second.piece.isWhite()
-    fun Char.color(): Char {
-        return if (white) toUpperCase() else toLowerCase()
-    }
 
     val shape = remember { RoundedCornerShape(4.dp) }
     val piece = requestPromotesTo.value.second.piece
@@ -278,7 +272,7 @@ private fun BoxWithConstraintsScope.RequestPromotionPiece(requestPromotesTo: Mut
         )){
         Column{
             "QRBN".let { if(piece.isBlack() xor whiteBottom.value) it else it.reversed() }.forEach{
-                PromotionPieceButton(size, it.color(), onClick = onClick)
+                PromotionPieceButton(size, it.ofColor(white), onClick = onClick)
             }
         }
     }
