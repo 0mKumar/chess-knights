@@ -1,115 +1,190 @@
 package com.oapps.chessknights
 
+import android.app.Activity
+import android.content.Intent
 import android.os.Bundle
 import android.util.Log
+import android.widget.Toast
 import androidx.activity.compose.setContent
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.animation.ExperimentalAnimationApi
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.rememberNavController
-import com.oapps.chessknights.ui.PlayerBanner
-import com.oapps.chessknights.ui.chess.*
-import com.oapps.chessknights.ui.theme.*
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.*
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.common.api.ApiException
+import com.google.firebase.auth.GoogleAuthProvider
+import com.google.firebase.auth.ktx.auth
+import com.google.firebase.ktx.Firebase
+import com.oapps.chessknights.ui.AppDrawer
+import com.oapps.chessknights.ui.LivePlayScreen
+import com.oapps.chessknights.ui.SignUp
+import com.oapps.chessknights.ui.theme.ChessKnightsTheme
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 
 val TAG = "Compose"
 
 class MainActivity : AppCompatActivity() {
+    lateinit var loginLauncher: ActivityResultLauncher<Intent>
+    lateinit var navController: NavHostController
+
+    @ExperimentalAnimationApi
+    @ExperimentalCoroutinesApi
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        navController = NavHostController(this).apply {
+            navigatorProvider.addNavigator(ComposeNavigator())
+        }
+
+        loginLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (result.resultCode == Activity.RESULT_OK) {
+                val task =
+                    GoogleSignIn.getSignedInAccountFromIntent(result.data)
+                try {
+                    // Google Sign In was successful, authenticate with Firebase
+                    val account =
+                        task.getResult(ApiException::class.java)!!
+                    Log.d(TAG, "firebaseAuthWithGoogle:" + account.id)
+                    firebaseAuthWithGoogle(account.idToken!!)
+                } catch (e: ApiException) {
+                    // Google Sign In failed, update UI appropriately
+                    Log.w(TAG, "Google sign in failed", e)
+                }
+            }
+        }
+
         chess.state.resetCastling("KkQq")
+
+
         setContent {
+            val internetAvailable by ConnectionLiveData(this).observeAsState(false)
             val darkMode = remember { mutableStateOf(true) }
             ChessKnightsTheme(window, darkTheme = darkMode.value) {
+                val currentUser by Firebase.auth.currentUserAsState()
+                val navState by navController.currentBackStackEntryAsState()
                 Scaffold(
                     topBar = {
-                        AppTopBar()
+                        AppTopBar(navState?.arguments?.getString(KEY_ROUTE))
                     },
+                    drawerContent = {
+                        AppDrawer(
+                            navController = navController,
+                            currentUser = currentUser,
+                            signOut = { firebaseSignOut() }
+                        )
+                    }
                 ) {
-                    val navController = rememberNavController()
                     NavHost(
                         navController = navController,
-                        startDestination = "live"){
-                        composable("live"){
-                            AppContent(darkMode)
+                        startDestination = "live"
+                    ) {
+                        composable("error"){
+                            Text("error")
+                        }
+                        composable("live") {
+                            LivePlayScreen(darkMode, internetAvailable)
+                        }
+                        composable("home") {
+                            Column {
+                                Text("Home")
+                                Button(onClick = {
+                                    if(currentUser == null) {
+                                        firebaseSignIn()
+                                    }else{
+                                        firebaseSignOut()
+                                    }
+                                }) {
+                                    Text(if(currentUser == null) "Sign In" else "Sign out")
+                                }
+                            }
+                        }
+                        composable("signup"){
+                             SignUp(navController)
+                        }
+                        composable("login") {
+                            if (Firebase.auth.currentUser == null) {
+                                Button(onClick = {
+                                    firebaseSignIn()
+                                }) {
+                                    Text("Google sign in")
+                                }
+                            } else {
+                                navController.navigate("home")
+                            }
                         }
                     }
                 }
             }
         }
     }
-}
 
-@Composable
-fun AppContent(darkMode: MutableState<Boolean>) {
-    Surface(color = MaterialTheme.colors.surface) {
-        val whiteBottom = remember { mutableStateOf(true) }
-        var showCoordinates by remember { mutableStateOf(true) }
-        val scrollState = rememberScrollState()
-        Column(
-            Modifier
-                .padding(start = 8.dp, end = 8.dp)
-                .verticalScroll(scrollState)
-        ) {
-            PlayerBanner("My Opponent", "(1360)", "4:40", Modifier.padding(bottom = 32.dp, top = 16.dp), R.drawable.bp)
-            PlayableChessBoard(whiteBottom, showCoordinates = showCoordinates)
-            PlayerBanner("Om Kumar", "(1459)", "4:35", Modifier.padding(top = 32.dp, bottom = 40.dp), R.drawable.wp, clockActive = true)
+    private fun firebaseSignIn() {
+        val gso =
+            GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                .requestIdToken(getString(R.string.default_web_client_id))
+                .requestEmail()
+                .build()
 
-            TextButton(onClick = { whiteBottom.value = !whiteBottom.value }) {
-                Icon(
-                    painterResource(id = R.drawable.ic_twotone_flip_camera_android_24),
-                    "Flip"
-                )
-                Text("Flip board", Modifier.padding(start = 8.dp))
-            }
+        val googleSignInClient =
+            GoogleSignIn.getClient(this@MainActivity, gso)
+        val signInIntent = googleSignInClient.signInIntent
 
-            TextButton(onClick = { showCoordinates = !showCoordinates }, Modifier.padding(top = 16.dp)) {
-                Icon(painterResource(id = if(showCoordinates) R.drawable.ic_twotone_label_off_24 else R.drawable.ic_twotone_label_24), contentDescription = "")
-                Text(text = if (showCoordinates) "Hide coordinates" else "Show coordinates", Modifier.padding(start = 8.dp))
-            }
-
-            TextButton(onClick = { darkMode.value = !darkMode.value }, Modifier.padding(top = 16.dp)) {
-                Icon(painterResource(id = if(darkMode.value) R.drawable.ic_twotone_wb_sunny_24 else R.drawable.ic_twotone_nights_stay_24), contentDescription = "")
-                Text(text = if (darkMode.value) "Light mode" else "Dark mode", Modifier.padding(start = 8.dp))
-            }
-
-            TextButton(onClick = {
-                Log.d(TAG, "AppContent: ${chess.generateFen()}")
-            }, Modifier.padding(top = 16.dp)) {
-                Text("Print fen", Modifier.padding(start = 8.dp))
-            }
-            TextButton(onClick = {
-                Log.d(TAG, "AppContent: ${chess.asciiBoard()}")
-            }, Modifier.padding(top = 16.dp)) {
-                Text("Print full board", Modifier.padding(start = 8.dp))
-            }
-            val coroutineScope = rememberCoroutineScope()
-            TextButton(onClick = {
-                Log.d(TAG, "AppContent: ${chess.refreshPieces(coroutineScope)}")
-            }, Modifier.padding(top = 16.dp)) {
-                Text("Force refresh", Modifier.padding(start = 8.dp))
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-        }
+        loginLauncher.launch(signInIntent.apply {
+            putExtra("input_int", 12)
+        })
     }
-}
 
+    private fun firebaseSignOut(){
+        Firebase.auth.signOut()
+        val gso =
+            GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                .requestIdToken(getString(R.string.default_web_client_id))
+                .requestEmail()
+                .build()
+
+        val googleSignInClient =
+            GoogleSignIn.getClient(this@MainActivity, gso)
+        googleSignInClient.signOut()
+    }
+
+    private fun firebaseAuthWithGoogle(idToken: String) {
+        val credential = GoogleAuthProvider.getCredential(idToken, null)
+        Firebase.auth.signInWithCredential(credential)
+            .addOnCompleteListener(this) { task ->
+                if (task.isSuccessful) {
+                    // Sign in success, update UI with the signed-in user's information
+                    Log.d(TAG, "signInWithCredential:success")
+                    val user = Firebase.auth.currentUser
+//                updateUI(user)
+                    navController.navigate("home")
+                } else {
+                    // If sign in fails, display a message to the user.
+                    Log.w(TAG, "signInWithCredential:failure", task.exception)
+                    Toast.makeText(this, "Sign in failed: " + task.exception?.localizedMessage, Toast.LENGTH_SHORT).show()
+//                    navController.navigate("error")
+                }
+            }
+    }
+
+}
 @Composable
-fun AppTopBar() {
+fun AppTopBar(title: String?) {
     TopAppBar(
         title = {
             Text(
-                "Knight Chess",
+                text = title?:"Knight Chess",
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),
                 fontSize = 24.sp,

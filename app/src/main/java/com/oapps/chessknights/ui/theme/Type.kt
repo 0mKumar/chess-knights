@@ -23,12 +23,12 @@ val UbuntuFontFamily = FontFamily(
 
 // Set of Material typography styles to start with
 val Typography = Typography(
-    defaultFontFamily = UbuntuFontFamily,
-    body1 = TextStyle(
-        fontFamily = UbuntuFontFamily,
-        fontWeight = FontWeight.Normal,
-        fontSize = 16.sp
-    )
+//    defaultFontFamily = UbuntuFontFamily,
+//    body1 = TextStyle(
+//        fontFamily = UbuntuFontFamily,
+//        fontWeight = FontWeight.Normal,
+//        fontSize = 16.sp
+//    )
     /* Other default text styles to override
     button = TextStyle(
         fontFamily = FontFamily.Default,
