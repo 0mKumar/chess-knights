@@ -53,6 +53,7 @@ object MoveValidator {
         if ((diff.y > 0 && move.piece.isBlack()) || (diff.y < 0 && move.piece.isWhite())) return false
         if((diff.y == 2 && move.from.y != 1) || (diff.y == -2 && move.from.y != 6)) return false
         if(diff.x.absoluteValue == 1){
+            if(diff.y.absoluteValue != 1) return false
             if(pieceAtDest == null && move.to == chess.state.enPassantTarget) move.props[Move.Props.EN_PASSANT_STRING] = chess.state.enPassantString()
             if(pieceAtDest == null && move.to != chess.state.enPassantTarget) return false
             if(pieceAtDest != null) return true
@@ -117,23 +118,63 @@ object MoveValidator {
         return false
     }
 
-    fun isLegal(chess: Chess, move: Move): Boolean{
+    private fun revertMove(chess: Chess, move: Move){
+        Log.d(TAG, "revertMove: $move")
+        move.piece.vec = move.from
+        if(move.isPromotion()){
+            move.piece.kind = move.pieceKind
+        }
+        move.props.isAttack {
+            chess.pieces.add(it)
+            Log.d(TAG, "revertMove: attack revert")
+        }
+        move.props.isCastling {
+            move.props.getCastlingRookInitialVec()?.let {
+                move.props.getCastlingRook()?.vec = it
+            }
+        }
+    }
+
+    private fun isLegal(chess: Chess, move: Move): Boolean{
+        Log.d(TAG, "isLegal: checking $move")
         val ourKing = chess.pieces.find { it.kind == 'K'.ofColor(move.piece.isWhite()) }
         if(ourKing == null) {
-            println("Where is our King lol! Chess state invalid")
+            Log.d(TAG, "isLegal: Where is our King lol! Chess state invalid")
             return true
         }
-        move.piece.vec = move.to
+        move.piece.justMoveTo(move)
+
         val oppPieces = chess.pieces.filter { it.isWhite() != move.piece.isWhite() }
         for(oppPiece in oppPieces){
             val fakeMove = Move(chess, oppPiece, ourKing.vec)
-            if(validateMove(chess, fakeMove, false)){
+            if(validateMove(chess, fakeMove, false) && fakeMove.props.isAttack()){
                 Log.d(TAG, "isLegal: $move not legal, threat piece is $oppPiece")
+                move.props[Move.Props.INVALID_BOOLEAN] = true
+                revertMove(chess, move)
                 return false
             }
         }
-        move.piece.vec = move.from
+
+        revertMove(chess, move)
         return true
+    }
+
+    fun isCheck(chess: Chess, opponentColorWhite: Boolean): Boolean{
+        val oppKing = chess.pieces.find { it.kind == 'K'.ofColor(opponentColorWhite) }
+        if(oppKing == null) {
+            Log.d(TAG, "isCheck: Where is opponent's King lol! Chess state invalid")
+            return false
+        }
+        val myPieces = chess.pieces.filter { it.isWhite() != opponentColorWhite }
+        for(myPiece in myPieces){
+            val fakeMove = Move(chess, myPiece, oppKing.vec)
+            if(validateMove(chess, fakeMove, false) && fakeMove.props.isAttack()){
+                Log.d(TAG, "isCheck: from $myPiece")
+                return true
+            }
+        }
+
+        return false
     }
 
     fun validateMove(chess: Chess, move: Move, checkIllegal: Boolean = true): Boolean {
