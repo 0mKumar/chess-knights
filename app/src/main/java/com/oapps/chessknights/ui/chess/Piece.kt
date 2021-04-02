@@ -206,6 +206,7 @@ class Piece(
         if (move.props.isValid()) {
             Log.d(TAG, "justMoveTo: $move complete")
             move.props.isAttack {
+                Log.d(TAG, "justMoveTo: removed attacked piece $it")
                 chess.pieces.remove(it)
             }
             if (move.isPromotion()) {
@@ -215,9 +216,5 @@ class Piece(
             }
             onComplete?.invoke(move)
         }
-    }
-
-    fun validMoves(chess: Chess, piece: Piece){
-
     }
 }

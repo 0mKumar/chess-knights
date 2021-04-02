@@ -42,7 +42,7 @@ class Move private constructor(
     }
 
     fun isPromotion(): Boolean {
-        if (piece.kind.toUpperCase() == 'P') {
+        if (pieceKind == 'P') {
             if (to.y == 0 || to.y == 7) {
                 return true
             }

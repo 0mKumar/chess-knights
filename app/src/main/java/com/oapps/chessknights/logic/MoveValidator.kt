@@ -6,6 +6,7 @@ import com.oapps.chessknights.Vec
 import com.oapps.chessknights.ui.chess.Piece
 import com.oapps.chessknights.ui.chess.ofColor
 import kotlin.math.absoluteValue
+import kotlin.math.log
 
 object MoveValidator {
     private fun ownPieceAttacked(
@@ -120,8 +121,13 @@ object MoveValidator {
 
     private fun revertMove(chess: Chess, move: Move){
         Log.d(TAG, "revertMove: $move")
+        if(move.piece.vec == move.from){
+            Log.d(TAG, "revertMove: move was already reverted")
+            return
+        }
         move.piece.vec = move.from
         if(move.isPromotion()){
+            Log.d(TAG, "revertMove: promotion revert")
             move.piece.kind = move.pieceKind
         }
         move.props.isAttack {
@@ -142,6 +148,7 @@ object MoveValidator {
             Log.d(TAG, "isLegal: Where is our King lol! Chess state invalid")
             return true
         }
+        Log.d(TAG, "isLegal: just move to called")
         move.piece.justMoveTo(move)
 
         val oppPieces = chess.pieces.filter { it.isWhite() != move.piece.isWhite() }
@@ -155,6 +162,7 @@ object MoveValidator {
             }
         }
 
+        Log.d(TAG, "isLegal: revert called")
         revertMove(chess, move)
         return true
     }
@@ -206,5 +214,80 @@ object MoveValidator {
 
         if(!validateStep2()) return false
         return true
+    }
+
+    fun validMoves(chess: Chess, piece: Piece): List<Move>{
+        val kind = piece.kind.toUpperCase()
+        val moves = mutableListOf<Move>()
+        when(kind){
+            'R', 'B', 'Q', 'K' -> {
+                val dirs = mutableListOf<Vec>()
+                if(kind in "RQK"){
+                    dirs.add(Vec(1, 0))
+                    dirs.add(Vec(0, 1))
+                    dirs.add(Vec(-1, 0))
+                    dirs.add(Vec(0, -1))
+                }
+                if(kind in "BQK"){
+                    dirs.add(Vec(1, 1))
+                    dirs.add(Vec(-1, 1))
+                    dirs.add(Vec(-1, -1))
+                    dirs.add(Vec(1, -1))
+                }
+                if(kind == 'K'){
+                    for(dir in dirs) {
+                        val fakeMove = Move(chess, piece, piece.vec + dir)
+                        Log.d(TAG, "validMoves: Checking $fakeMove")
+                        if(validateMove(chess, fakeMove).also { revertMove(chess, fakeMove) }){
+                            moves.add(fakeMove)
+                        }
+                    }
+                }else{
+                    for(dir in dirs) {
+                        for(to in vectorsInDirection(piece.vec, dir)){
+                            val fakeMove = Move(chess, piece, to)
+                            Log.d(TAG, "validMoves: Checking $fakeMove")
+                            if(validateMove(chess, fakeMove).also { revertMove(chess, fakeMove) }){
+                                moves.add(fakeMove)
+                            }else{
+                                break
+                            }
+                        }
+                    }
+                }
+            }
+            'P' -> {
+                val dirs = mutableListOf<Vec>()
+                val ySign = if (piece.isBlack()) -1 else 1
+                for(x in -1..1){
+                    dirs.add(Vec(x, 1 * ySign))
+                }
+                dirs.add(Vec(0, 2 * ySign))
+                for(dir in dirs){
+                    val fakeMove = Move(chess, piece, piece.vec + dir)
+                    Log.d(TAG, "validMoves: Checking $fakeMove")
+                    if(validateMove(chess, fakeMove).also { revertMove(chess, fakeMove) }){
+                        moves.add(fakeMove)
+                    }
+                }
+            }
+            'N' -> {
+                val dirs = mutableListOf<Vec>()
+                for(i in -1..1 step 2){
+                    for(j in -2..2 step 4){
+                        dirs.add(Vec(i, j))
+                        dirs.add(Vec(j, i))
+                    }
+                }
+                for(dir in dirs){
+                    val fakeMove = Move(chess, piece, piece.vec + dir)
+                    Log.d(TAG, "validMoves: Checking $fakeMove")
+                    if(validateMove(chess, fakeMove).also { revertMove(chess, fakeMove) }){
+                        moves.add(fakeMove)
+                    }
+                }
+            }
+        }
+        return moves.filter { it.props.isValid() }
     }
 }

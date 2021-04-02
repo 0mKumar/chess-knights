@@ -27,11 +27,13 @@ import androidx.compose.ui.unit.sp
 import com.oapps.chessknights.*
 import com.oapps.chessknights.R
 import com.oapps.chessknights.logic.Move
+import com.oapps.chessknights.logic.MoveValidator
 import com.oapps.chessknights.ui.PlayerBanner
 import com.oapps.chessknights.ui.theme.ChessKnightsTheme
 import com.oapps.chessknights.ui.theme.ChessLightColorPalette
 import com.oapps.chessknights.ui.theme.LocalChessColor
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 
 
 @Preview(showBackground = true)
@@ -173,6 +175,9 @@ fun BoxWithConstraintsScope.ChessPiecesLayer(
                             requestPromotionTo = requestPromotionTo
                         )
                     } else {
+                        val validMoves = MoveValidator.validMoves(chess, piece)
+                        Log.d(TAG, "${validMoves.size} moves for $piece")
+                        Log.d(TAG, validMoves.toString())
                         piece.selected = true
                     }
                 }
