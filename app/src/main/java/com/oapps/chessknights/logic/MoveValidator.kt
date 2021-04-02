@@ -4,6 +4,7 @@ import android.util.Log
 import com.oapps.chessknights.TAG
 import com.oapps.chessknights.Vec
 import com.oapps.chessknights.ui.chess.Piece
+import com.oapps.chessknights.ui.chess.ofColor
 import kotlin.math.absoluteValue
 
 object MoveValidator {
@@ -116,7 +117,26 @@ object MoveValidator {
         return false
     }
 
-    fun validateMove(chess: Chess, move: Move): Boolean {
+    fun isLegal(chess: Chess, move: Move): Boolean{
+        val ourKing = chess.pieces.find { it.kind == 'K'.ofColor(move.piece.isWhite()) }
+        if(ourKing == null) {
+            println("Where is our King lol! Chess state invalid")
+            return true
+        }
+        move.piece.vec = move.to
+        val oppPieces = chess.pieces.filter { it.isWhite() != move.piece.isWhite() }
+        for(oppPiece in oppPieces){
+            val fakeMove = Move(chess, oppPiece, ourKing.vec)
+            if(validateMove(chess, fakeMove, false)){
+                Log.d(TAG, "isLegal: $move not legal, threat piece is $oppPiece")
+                return false
+            }
+        }
+        move.piece.vec = move.from
+        return true
+    }
+
+    fun validateMove(chess: Chess, move: Move, checkIllegal: Boolean = true): Boolean {
         fun validateStep1(): Boolean{
             if(move.from == move.to) {
                 Log.d(TAG, "validateMove: to == dest")
@@ -135,6 +155,15 @@ object MoveValidator {
 
         // TODO: 15/03/21 Handle illegal castling
         if(!validateStep1()) return false
+
+        fun validateStep2(): Boolean{
+            if(checkIllegal){
+                if(!isLegal(chess, move)) return false
+            }
+            return true
+        }
+
+        if(!validateStep2()) return false
         return true
     }
 }

@@ -14,7 +14,7 @@ import kotlinx.coroutines.*
 import kotlin.math.roundToInt
 
 class Piece(
-    vec: Vec = Vec(),
+    var vec: Vec = Vec(),
     kind: Char = 'p'
 ) {
     val name: String by lazy {
@@ -27,7 +27,7 @@ class Piece(
 
     var selected by mutableStateOf(false)
 
-    var vec by mutableStateOf(vec, structuralEqualityPolicy())
+//    var vec by mutableStateOf(vec, structuralEqualityPolicy())
     var kind by mutableStateOf(kind)
 
     fun dragBy(coroutineScope: CoroutineScope, offset: Offset){

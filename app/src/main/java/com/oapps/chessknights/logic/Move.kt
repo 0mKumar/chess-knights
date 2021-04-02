@@ -38,4 +38,6 @@ class Move private constructor (val chess: Chess, val piece: Piece, val to: Vec,
         }
         return false
     }
+
+    
 }
