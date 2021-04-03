@@ -57,10 +57,6 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        navController = NavHostController(this).apply {
-            navigatorProvider.addNavigator(ComposeNavigator())
-        }
-
         loginLauncher =
             registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
                 if (result.resultCode == Activity.RESULT_OK) {
@@ -92,6 +88,7 @@ class MainActivity : AppCompatActivity() {
             val internetAvailable by ConnectionLiveData(this).observeAsState(false)
             val darkMode = remember { mutableStateOf(true) }
             ChessKnightsTheme(window, darkTheme = darkMode.value) {
+                navController = rememberNavController()
                 val currentUser by Firebase.auth.currentUserAsState()
                 val navState by navController.currentBackStackEntryAsState()
                 Scaffold(
@@ -201,7 +198,10 @@ private fun HomeScreen(
 ) {
     Column(Modifier.padding(16.dp)) {
         Button(modifier = Modifier.fillMaxWidth(), onClick = { navController.navigate("live") }) {
-            Image(painterResource(id = R.drawable.wn), contentDescription = "Live chess", Modifier.size(32.dp).padding(end = 8.dp))
+            Image(painterResource(id = R.drawable.wn), contentDescription = "Live chess",
+                Modifier
+                    .size(32.dp)
+                    .padding(end = 8.dp))
             Text("Live chess")
         }
     }
@@ -224,4 +224,9 @@ fun AppTopBar(title: String?) {
 
         }
     )
+}
+
+@Composable
+fun Test(){
+    val (m, on) = mutableStateOf(false)
 }

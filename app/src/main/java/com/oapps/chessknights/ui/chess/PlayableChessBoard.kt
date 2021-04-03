@@ -33,8 +33,8 @@ import com.oapps.chessknights.ui.theme.ChessKnightsTheme
 import com.oapps.chessknights.ui.theme.ChessLightColorPalette
 import com.oapps.chessknights.ui.theme.LocalChessColor
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
 
+var tiles = mutableStateMapOf<Vec, Tile>()
 
 @Preview(showBackground = true)
 @Composable
@@ -88,7 +88,7 @@ fun BoxWithConstraintsScope.ChessBackground(modifier: Modifier = Modifier) {
 
             for (x in 0..7) {
                 for (y in 0..7) {
-                    val color = if (isWhite(x, y)) palette.surfaceWhite else palette.surfaceBlack
+                    val color = if (isWhite(x, y)) palette.surfaceLight else palette.surfaceDark
                     drawRect(
                         color,
                         Offset(x * blockSize, y * blockSize),
@@ -98,6 +98,52 @@ fun BoxWithConstraintsScope.ChessBackground(modifier: Modifier = Modifier) {
             }
         })
     }
+}
+
+@Composable
+private fun BoxWithConstraintsScope.TileHighlightLayer(whiteBottom: MutableState<Boolean>){
+    tiles.values.forEach{
+        TileBackgroundDecoration(tile = it, size = maxWidth / 8, whiteBottom = whiteBottom)
+    }
+}
+
+@Composable
+private fun BoxWithConstraintsScope.TileBackgroundDecoration(
+    modifier: Modifier = Modifier,
+    tile: Tile,
+    size: Dp,
+    whiteBottom: MutableState<Boolean>
+){
+    val palette = LocalChessColor.current
+    fun isWhite(x: Int, y: Int) = (x + y) % 2 == 0
+
+    val color = remember(tile.flags) {
+        if(isWhite(tile.vec.x, tile.vec.y)) {
+            when {
+                tile.contains(Tile.PIECE_SELECTED) -> palette.tileBackgroundPieceSelectedLight
+                else -> Color.Transparent
+            }
+        }else{
+            when {
+                tile.contains(Tile.PIECE_SELECTED) -> palette.tileBackgroundPieceSelectedDark
+                else -> Color.Transparent
+            }
+        }
+    }
+    Box(modifier = modifier
+        .offset(
+            (size * tile.vec.x).transformX(
+                whiteBottom.value,
+                maxWidth * 7 / 8
+            ),
+            (size * tile.vec.y).transformY(
+                whiteBottom.value,
+                maxHeight * 7 / 8
+            )
+        )
+        .size(size, size)
+        .background(color)
+    )
 }
 
 @Composable
@@ -124,7 +170,7 @@ fun BoxWithConstraintsScope.ChessPiece(
                     maxHeight * 7 / 8
                 )
             )
-            .background(if (piece.selected) Color.Yellow.copy(alpha = 0.5f) else Color.Transparent)
+//            .background(if (piece.selected) Color.Yellow.copy(alpha = 0.5f) else Color.Transparent)
             .size(size, size)
             .pointerInput(piece) {
                 detectDragGestures(
@@ -165,10 +211,12 @@ fun BoxWithConstraintsScope.ChessPiecesLayer(
             }, onClick = {
                 if (piece.selected) {
                     piece.selected = false
+                    tiles[piece.vec] = (tiles[piece.vec]?:Tile(piece.vec)).remove(Tile.PIECE_SELECTED)
                 } else {
                     val selectedPiece = chess.pieces.find { it.selected }
                     if (selectedPiece != null) {
                         selectedPiece.selected = false
+                        tiles[selectedPiece.vec] = (tiles[selectedPiece.vec]?:Tile(selectedPiece.vec)).remove(Tile.PIECE_SELECTED)
                         selectedPiece.moveTo(
                             coroutineScope,
                             piece.vec,
@@ -179,6 +227,7 @@ fun BoxWithConstraintsScope.ChessPiecesLayer(
                         Log.d(TAG, "${validMoves.size} moves for $piece")
                         Log.d(TAG, validMoves.toString())
                         piece.selected = true
+                        tiles[piece.vec] = (tiles[piece.vec]?:Tile(piece.vec)).add(Tile.PIECE_SELECTED)
                     }
                 }
             },
@@ -210,6 +259,7 @@ fun BoxWithConstraintsScope.ChessClickBase(
                                 .find { it.selected }
                                 ?.let { selectedPiece ->
                                     selectedPiece.selected = false
+                                    tiles[selectedPiece.vec] = (tiles[selectedPiece.vec]?:Tile(selectedPiece.vec)).remove(Tile.PIECE_SELECTED)
                                     val size = maxWidth.toPx() / 8
                                     val to = Vec(
                                         (offset.x / size).toInt(),
@@ -243,6 +293,7 @@ fun PlayableChessBoard(
         if (showCoordinates) {
             Coordinates(whiteBottom)
         }
+        TileHighlightLayer(whiteBottom = whiteBottom)
         val requestPromotionTo: (Move) -> Unit = { it: Move ->
             requestPromotesTo.value = Pair(true, it)
             Log.d(TAG, "PlayableChessBoard: got request to show dialog")
