@@ -11,6 +11,10 @@ data class Vec(var x: Int = 0, var y: Int = 0) {
 
     fun loc() = "${'a' + x}${'1' + y}"
 
+    override fun toString(): String {
+        return loc()
+    }
+
     operator fun plus(other: Vec) = Vec(x + other.x, y + other.y)
     operator fun minus(other: Vec) = Vec(x - other.x, y - other.y)
     operator fun times(value: Int) = Vec(x * value, y * value)

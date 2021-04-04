@@ -8,7 +8,7 @@ import com.oapps.chessknights.chess
 class State() {
     inner class Capture(state: State){
         val castling = state.castling
-        val enPassantTarget = state.enPassantTarget
+        val enPassantTarget = state.enPassantTarget.copy()
         val activeColor = state.activeColor
     }
 
@@ -35,5 +35,16 @@ class State() {
         Chess.Color.WHITE -> "w"
         Chess.Color.BLACK -> "b"
         Chess.Color.UNSPECIFIED -> "-"
+    }
+
+    fun update(move: Move){
+        activeColor = if(move.piece.isWhite()) Chess.Color.BLACK else Chess.Color.WHITE
+        move.props.isCastling {
+            removeCastle(it)
+        }
+        enPassantTarget = Vec.None
+        move.props.createsEnPassantTarget {
+            enPassantTarget = it
+        }
     }
 }

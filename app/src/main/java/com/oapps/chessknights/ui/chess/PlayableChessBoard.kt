@@ -24,15 +24,17 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import com.oapps.chessknights.*
 import com.oapps.chessknights.R
+import com.oapps.chessknights.logic.Chess
 import com.oapps.chessknights.logic.Move
 import com.oapps.chessknights.logic.MoveValidator
-import com.oapps.chessknights.ui.PlayerBanner
+import com.oapps.chessknights.ui.live.PlayerBanner
 import com.oapps.chessknights.ui.theme.ChessKnightsTheme
 import com.oapps.chessknights.ui.theme.ChessLightColorPalette
 import com.oapps.chessknights.ui.theme.LocalChessColor
-import kotlinx.coroutines.CoroutineScope
+import kotlin.math.roundToInt
 
 var tiles = mutableStateMapOf<Vec, Tile>()
 
@@ -121,11 +123,13 @@ private fun BoxWithConstraintsScope.TileBackgroundDecoration(
         if(isWhite(tile.vec.x, tile.vec.y)) {
             when {
                 tile.contains(Tile.PIECE_SELECTED) -> palette.tileBackgroundPieceSelectedLight
+                tile.contains(Tile.TILE_HIGHLIGHT) -> palette.tileBackgroundHighlightLight
                 else -> Color.Transparent
             }
         }else{
             when {
                 tile.contains(Tile.PIECE_SELECTED) -> palette.tileBackgroundPieceSelectedDark
+                tile.contains(Tile.TILE_HIGHLIGHT) -> palette.tileBackgroundHighlightDark
                 else -> Color.Transparent
             }
         }
@@ -153,6 +157,7 @@ fun BoxWithConstraintsScope.ChessPiece(
     modifier: Modifier = Modifier,
     onDrag: (dragAmount: Offset) -> Unit,
     onDragEnd: () -> Unit,
+    onDragStart: () -> Unit,
     onClick: () -> Unit,
     whiteBottom: MutableState<Boolean>
 ) {
@@ -174,6 +179,7 @@ fun BoxWithConstraintsScope.ChessPiece(
             .size(size, size)
             .pointerInput(piece) {
                 detectDragGestures(
+                    onDragStart = { onDragStart() },
                     onDragEnd = onDragEnd
                 ) { change, dragAmount ->
                     change.consumeAllChanges()
@@ -182,6 +188,8 @@ fun BoxWithConstraintsScope.ChessPiece(
                     )
                 }
             }
+            .zIndex(if (piece.selected) 8f.also {
+                Log.d(TAG, "ChessPiece: $piece is high")} else 0f)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
@@ -194,42 +202,25 @@ fun BoxWithConstraintsScope.ChessPiece(
 
 @Composable
 fun BoxWithConstraintsScope.ChessPiecesLayer(
-    coroutineScope: CoroutineScope,
     whiteBottom: MutableState<Boolean>,
-    requestPromotionTo: ((Move) -> Unit)? = null
+    uiActions: ChessUIActions
 ) {
-    chess.pieces.sortBy { it.offsetFractionX.isRunning }
+//    chess.pieces.sortBy { it.offsetFractionX.isRunning }
+
     chess.pieces.forEach { piece ->
         ChessPiece(
             piece = piece,
             size = maxWidth / 8,
             onDrag = {
-                piece.dragBy(coroutineScope, it.transformDirection(whiteBottom.value))
+                uiActions.onPieceDrag(piece, it.transformDirection(whiteBottom.value))
+            },
+            onDragStart = {
+                uiActions.onPieceDragStart(piece)
             },
             onDragEnd = {
-                piece.snap(coroutineScope, requestPromotionTo = requestPromotionTo)
+                uiActions.onPieceDragEnd(piece)
             }, onClick = {
-                if (piece.selected) {
-                    piece.selected = false
-                    tiles[piece.vec] = (tiles[piece.vec]?:Tile(piece.vec)).remove(Tile.PIECE_SELECTED)
-                } else {
-                    val selectedPiece = chess.pieces.find { it.selected }
-                    if (selectedPiece != null) {
-                        selectedPiece.selected = false
-                        tiles[selectedPiece.vec] = (tiles[selectedPiece.vec]?:Tile(selectedPiece.vec)).remove(Tile.PIECE_SELECTED)
-                        selectedPiece.moveTo(
-                            coroutineScope,
-                            piece.vec,
-                            requestPromotionTo = requestPromotionTo
-                        )
-                    } else {
-                        val validMoves = MoveValidator.validMoves(chess, piece)
-                        Log.d(TAG, "${validMoves.size} moves for $piece")
-                        Log.d(TAG, validMoves.toString())
-                        piece.selected = true
-                        tiles[piece.vec] = (tiles[piece.vec]?:Tile(piece.vec)).add(Tile.PIECE_SELECTED)
-                    }
-                }
+                uiActions.onSquareTapped(piece.vec, piece)
             },
             whiteBottom = whiteBottom
         )
@@ -239,38 +230,27 @@ fun BoxWithConstraintsScope.ChessPiecesLayer(
 
 @Composable
 fun BoxWithConstraintsScope.ChessClickBase(
-    coroutineScope: CoroutineScope,
     whiteBottom: MutableState<Boolean>,
-    requestPromotionTo: ((Move) -> Unit)? = null
+    uiActions: ChessUIActions
 ) {
     Box(
         modifier = Modifier
             .fillMaxSize()
             .pointerInput(Unit) {
                 detectTapGestures(
-                    onPress = { it ->
+                    onPress = {
                         val offset =
                             it.transform(
                                 whiteBottom.value,
                                 Offset(maxWidth.toPx(), maxHeight.toPx())
                             )
                         if (tryAwaitRelease()) {
-                            chess.pieces
-                                .find { it.selected }
-                                ?.let { selectedPiece ->
-                                    selectedPiece.selected = false
-                                    tiles[selectedPiece.vec] = (tiles[selectedPiece.vec]?:Tile(selectedPiece.vec)).remove(Tile.PIECE_SELECTED)
-                                    val size = maxWidth.toPx() / 8
-                                    val to = Vec(
-                                        (offset.x / size).toInt(),
-                                        (offset.y / size).toInt()
-                                    )
-                                    selectedPiece.moveTo(
-                                        coroutineScope,
-                                        to,
-                                        requestPromotionTo = requestPromotionTo
-                                    )
-                                }
+                            val size = maxWidth.toPx() / 8
+                            val tapLocation = Vec(
+                                (offset.x / size).toInt(),
+                                (offset.y / size).toInt()
+                            )
+                            uiActions.onSquareTapped(tapLocation)
                         }
                     },
                 )
@@ -288,22 +268,98 @@ fun PlayableChessBoard(
     var boardModifier = modifier
     if (showCoordinates) boardModifier = boardModifier.padding(start = 12.dp, bottom = 16.dp)
     val requestPromotesTo = remember { mutableStateOf(Pair(false, Move(chess, "a1a1"))) }
+    val requestPromotionTo: (Move) -> Unit = { it: Move ->
+        requestPromotesTo.value = Pair(true, it)
+        Log.d(TAG, "PlayableChessBoard: got request to show dialog")
+    }
+
+    fun movePieceToRequest(piece: Piece, to: Vec){
+        if((chess.state.activeColor == Chess.Color.BLACK) == piece.isBlack()) {
+            piece.moveTo(coroutineScope, to, requestPromotionTo = requestPromotionTo, onComplete = {
+                chess.state.update(it)
+            })
+        }else{
+            piece.moveTo(coroutineScope, piece.vec)
+        }
+    }
+
+    val uiActions = object: ChessUIActions() {
+        override fun onSquareTapped(tappedVec: Vec, piece: Piece?) {
+            if(piece != null) {
+                if (piece.selected) {
+                    deselectPiece(piece)
+                } else {
+                    val selectedPiece = chess.pieces.find { it.selected }
+                    if (selectedPiece != null) {
+                        deselectPiece(selectedPiece)
+                        movePieceToRequest(selectedPiece, piece.vec)
+                    } else {
+                        val validMoves = MoveValidator.validMoves(chess, piece)
+                        Log.d(TAG, "${validMoves.size} moves for $piece")
+                        Log.d(TAG, validMoves.toString())
+                        selectPiece(piece)
+                    }
+                }
+            }else{
+                chess.pieces
+                    .find { it.selected }
+                    ?.let { selectedPiece ->
+                        deselectPiece(selectedPiece)
+                        movePieceToRequest(selectedPiece, tappedVec)
+                    }
+            }
+        }
+
+        private fun selectPiece(piece: Piece) {
+            if((chess.state.activeColor == Chess.Color.BLACK) != piece.isBlack()) {
+                return
+            }
+            piece.selected = true
+            tiles[piece.vec] =
+                (tiles[piece.vec] ?: Tile(piece.vec)).add(Tile.PIECE_SELECTED)
+
+            MoveValidator.validMoves(chess, piece).forEach{
+                tiles[it.to] =
+                    (tiles[it.to] ?: Tile(it.to)).add(Tile.TILE_HIGHLIGHT)
+            }
+        }
+
+        private fun deselectPiece(piece: Piece) {
+            piece.selected = false
+            tiles[piece.vec] =
+                (tiles[piece.vec] ?: Tile(piece.vec)).remove(Tile.PIECE_SELECTED)
+            tiles.values.forEach{
+                it.remove(Tile.TILE_HIGHLIGHT)
+            }
+        }
+
+        override fun onPieceDragStart(piece: Piece) {
+            if((chess.state.activeColor == Chess.Color.BLACK) == piece.isBlack())
+                selectPiece(piece)
+        }
+
+        override fun onPieceDragEnd(piece: Piece) {
+            deselectPiece(piece)
+            movePieceToRequest(piece, Vec(piece.offsetFractionX.value.roundToInt(), piece.offsetFractionY.value.roundToInt()))
+//            piece.snap(coroutineScope, requestPromotionTo = requestPromotionTo)
+        }
+
+        override fun onPieceDrag(piece: Piece, fractionalOffset: Offset) {
+            piece.dragBy(coroutineScope, fractionalOffset)
+        }
+    }
+
     ChessBox(boardModifier) {
         ChessBackground()
         if (showCoordinates) {
             Coordinates(whiteBottom)
         }
         TileHighlightLayer(whiteBottom = whiteBottom)
-        val requestPromotionTo: (Move) -> Unit = { it: Move ->
-            requestPromotesTo.value = Pair(true, it)
-            Log.d(TAG, "PlayableChessBoard: got request to show dialog")
-        }
         ChessClickBase(
-            coroutineScope,
             whiteBottom = whiteBottom,
-            requestPromotionTo = requestPromotionTo
+            uiActions = uiActions
         )
-        ChessPiecesLayer(coroutineScope, whiteBottom, requestPromotionTo = requestPromotionTo)
+        ChessPiecesLayer(whiteBottom, uiActions = uiActions)
         if (requestPromotesTo.value.first) {
             RequestPromotionPiece(requestPromotesTo, whiteBottom)
         }

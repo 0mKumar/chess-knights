@@ -15,6 +15,14 @@ fun MutableMap<Move.Props, Any>.isCastling(block: (who: Char) -> Unit){
     (get(Move.Props.CASTLING_CHAR) as? Char)?.let(block)
 }
 
+fun MutableMap<Move.Props, Any>.createsEnPassantTarget(block: (target: Vec) -> Unit){
+    (get(Move.Props.ENPASSANT_TARGET_VEC) as? Vec)?.let(block)
+}
+
+fun MutableMap<Move.Props, Any>.isEnPassant(block: (enPassantTarget: Vec) -> Unit){
+    (get(Move.Props.EN_PASSANT_OCCURRED_FOR_TARGET) as? Vec)?.let(block)
+}
+
 fun MutableMap<Move.Props, Any>.isAttack(block: (attackedPiece: Piece) -> Unit){
     (get(Move.Props.ATTACKED_PIECE) as? Piece)?.let(block)
 }

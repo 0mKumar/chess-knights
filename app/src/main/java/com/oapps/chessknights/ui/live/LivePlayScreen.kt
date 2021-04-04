@@ -1,9 +1,7 @@
-package com.oapps.chessknights.ui
+package com.oapps.chessknights.ui.live
 
 import android.util.Log
 import androidx.compose.animation.*
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
@@ -20,8 +18,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.database.ServerValue
@@ -31,7 +27,6 @@ import com.oapps.chessknights.*
 import com.oapps.chessknights.R
 import com.oapps.chessknights.ui.chess.LiveGameViewModel
 import com.oapps.chessknights.ui.chess.PlayableChessBoard
-import com.oapps.chessknights.ui.live.CreateChallenge
 import com.oapps.chessknights.ui.theme.ChessKnightsTheme
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
@@ -43,7 +38,7 @@ fun LivePlayScreen(darkMode: MutableState<Boolean>, internetAvailable: Boolean, 
     val liveGameViewModel = viewModel(modelClass = LiveGameViewModel::class.java)
     LaunchedEffect(Firebase.auth.currentUser?.uid, gameId){
         if (gameId != null) {
-            liveGameViewModel.setup(gameId)
+//            liveGameViewModel.setup(gameId)
         }
     }
     Surface(color = MaterialTheme.colors.surface) {

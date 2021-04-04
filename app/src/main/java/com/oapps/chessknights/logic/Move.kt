@@ -18,11 +18,12 @@ class Move private constructor(
 
     enum class Props {
         ATTACKED_PIECE,
-        EN_PASSANT_STRING,
+        EN_PASSANT_OCCURRED_FOR_TARGET,
         CASTLING_CHAR,
         INVALID_BOOLEAN,
         CASTLING_ROOK_PIECE,
         CASTLING_ROOK_FROM_VEC,
+        ENPASSANT_TARGET_VEC,
     }
 
     constructor(chess: Chess, algebraic: String) : this(

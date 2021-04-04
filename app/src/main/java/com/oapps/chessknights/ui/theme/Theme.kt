@@ -36,14 +36,21 @@ class ChessColors(
     surfaceWhite: Color,
     surfaceBlack: Color,
     tileBackgroundPieceSelectedLight: Color,
-    tileBackgroundPieceSelectedDark: Color
+    tileBackgroundPieceSelectedDark: Color,
+    tileBackgroundHighlightLight: Color,
+    tileBackgroundHighlightDark: Color,
 ){
     fun copy() = ChessColors(
         surfaceWhite = surfaceLight,
         surfaceBlack = surfaceDark,
         tileBackgroundPieceSelectedLight = tileBackgroundPieceSelectedLight,
-        tileBackgroundPieceSelectedDark = tileBackgroundPieceSelectedDark
+        tileBackgroundPieceSelectedDark = tileBackgroundPieceSelectedDark,
+        tileBackgroundHighlightLight = tileBackgroundHighlightLight,
+        tileBackgroundHighlightDark = tileBackgroundHighlightDark,
     )
+
+    val tileBackgroundHighlightLight by mutableStateOf(tileBackgroundHighlightLight, structuralEqualityPolicy())
+    val tileBackgroundHighlightDark by mutableStateOf(tileBackgroundHighlightDark, structuralEqualityPolicy())
 
     val tileBackgroundPieceSelectedLight by mutableStateOf(tileBackgroundPieceSelectedLight, structuralEqualityPolicy())
     val tileBackgroundPieceSelectedDark by mutableStateOf(tileBackgroundPieceSelectedDark, structuralEqualityPolicy())
@@ -56,8 +63,10 @@ class ChessColors(
 val ChessLightColorPalette = ChessColors(
     surfaceWhite = Color(0xFFE8EAF6),
     surfaceBlack = Color(0xFF4859B9),
-    tileBackgroundPieceSelectedLight = Color(0xCCFFEB3B),
-    tileBackgroundPieceSelectedDark = Color(0xCCFFEB3B)
+    tileBackgroundPieceSelectedLight = Color(0xFFFFEB3B),
+    tileBackgroundPieceSelectedDark = Color(0xFFFFEB3B),
+    tileBackgroundHighlightLight = Color(0xCCA4FF3B),
+    tileBackgroundHighlightDark = Color(0xCCA4FF3B),
 )
 
 val LocalChessColor = staticCompositionLocalOf { ChessLightColorPalette }
