@@ -168,7 +168,7 @@ object MoveValidator {
             return true
         }
         Log.d(TAG, "isLegal: just move to called")
-        move.piece.justMoveTo(move)
+        move.piece.justMoveTo(chess, move)
 
         val oppPieces = chess.pieces.filter { it.isWhite() != move.piece.isWhite() }
         for (oppPiece in oppPieces) {

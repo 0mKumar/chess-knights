@@ -1,5 +1,6 @@
 package com.oapps.chessknights.logic
 
+import android.util.Log
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import com.oapps.chessknights.Vec
@@ -7,7 +8,9 @@ import com.oapps.chessknights.ui.chess.Piece
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
-class Chess(val pieces: SnapshotStateList<Piece>) {
+class Chess() {
+    private val TAG = "Chess"
+    val pieces = mutableStateListOf<Piece>()
     var state = State()
 
     enum class Color{
@@ -16,14 +19,13 @@ class Chess(val pieces: SnapshotStateList<Piece>) {
         UNSPECIFIED,
     }
 
-    constructor(pieceList: List<List<String>>) : this(pieceList.flatten().map { Piece(it) }
-        .let { pieces ->
-            val list = mutableStateListOf<Piece>()
-            pieces.forEach {
-                list.add(it)
-            }
-            return@let list
-        })
+    constructor(pieceList: List<List<String>>): this(){
+        pieces.addAll(pieceList.flatten().map { Piece(it) })
+    }
+
+    constructor(fen: String) : this() {
+        pieces.addAll(piecesFromFen(fen))
+    }
 
 
     fun findPieceAt(vec: Vec) = pieces.find { it.vec == vec }
@@ -55,6 +57,32 @@ class Chess(val pieces: SnapshotStateList<Piece>) {
                 it.offsetFractionY.snapTo(it.vec.y.toFloat())
             }
         }
+    }
+
+    fun reset(fen: String){
+        pieces.clear()
+        pieces.addAll(piecesFromFen(fen))
+        state.reset(fen)
+    }
+
+    fun piecesFromFen(fen: String): List<Piece>{
+        Log.d(TAG, "piecesFromFen: $fen")
+        val pieces = mutableListOf<Piece>()
+        fen.substringBefore(' ').split('/').forEachIndexed{ i, row ->
+            Log.d(TAG, "piecesFromFen: adding new row $i $row")
+            var currX = 0
+            row.forEach{ kind ->
+                Log.d(TAG, "piecesFromFen: currX = $currX, kind = $kind")
+                if(kind.isDigit()){
+                    currX += kind - '0'
+                }else{
+                    val element = Piece(Vec(currX++, 7 - i), kind)
+                    pieces.add(element)
+                    Log.d(TAG, "piecesFromFen: added piece $element")
+                }
+            }
+        }
+        return pieces
     }
 
     fun generateFen(): String {

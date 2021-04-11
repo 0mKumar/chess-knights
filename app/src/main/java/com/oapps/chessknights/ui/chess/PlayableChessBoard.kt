@@ -42,7 +42,7 @@ var tiles = mutableStateMapOf<Vec, Tile>()
 @Composable
 fun PlayableChessPreview() {
     val whiteBottom = remember { mutableStateOf(true) }
-
+    val chess = remember { Chess() }
     ChessKnightsTheme {
         Column {
             PlayerBanner(
@@ -52,7 +52,7 @@ fun PlayableChessPreview() {
                 Modifier.padding(bottom = 16.dp),
                 R.drawable.wp
             )
-            PlayableChessBoard(whiteBottom = whiteBottom, showCoordinates = true)
+            PlayableChessBoard(chess = chess, whiteBottom = whiteBottom, showCoordinates = true)
             PlayerBanner("Myself", "(3200)", "5:38", Modifier.padding(top = 16.dp), R.drawable.wp)
         }
     }
@@ -103,7 +103,7 @@ fun BoxWithConstraintsScope.ChessBackground(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun BoxWithConstraintsScope.TileHighlightLayer(whiteBottom: MutableState<Boolean>){
+fun BoxWithConstraintsScope.TileHighlightLayer(whiteBottom: MutableState<Boolean>){
     tiles.values.forEach{
         TileBackgroundDecoration(tile = it, size = maxWidth / 8, whiteBottom = whiteBottom)
     }
@@ -189,7 +189,8 @@ fun BoxWithConstraintsScope.ChessPiece(
                 }
             }
             .zIndex(if (piece.selected) 8f.also {
-                Log.d(TAG, "ChessPiece: $piece is high")} else 0f)
+                Log.d(TAG, "ChessPiece: $piece is high")
+            } else 0f)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
@@ -202,6 +203,7 @@ fun BoxWithConstraintsScope.ChessPiece(
 
 @Composable
 fun BoxWithConstraintsScope.ChessPiecesLayer(
+    chess: Chess,
     whiteBottom: MutableState<Boolean>,
     uiActions: ChessUIActions
 ) {
@@ -260,6 +262,7 @@ fun BoxWithConstraintsScope.ChessClickBase(
 
 @Composable
 fun PlayableChessBoard(
+    chess: Chess,
     whiteBottom: MutableState<Boolean>,
     modifier: Modifier = Modifier,
     showCoordinates: Boolean = false
@@ -275,11 +278,11 @@ fun PlayableChessBoard(
 
     fun movePieceToRequest(piece: Piece, to: Vec){
         if((chess.state.activeColor == Chess.Color.BLACK) == piece.isBlack()) {
-            piece.moveTo(coroutineScope, to, requestPromotionTo = requestPromotionTo, onComplete = {
+            piece.moveTo(chess, coroutineScope, to, requestPromotionTo = requestPromotionTo, onComplete = {
                 chess.state.update(it)
             })
         }else{
-            piece.moveTo(coroutineScope, piece.vec)
+            piece.moveTo(chess, coroutineScope, piece.vec)
         }
     }
 
@@ -359,7 +362,7 @@ fun PlayableChessBoard(
             whiteBottom = whiteBottom,
             uiActions = uiActions
         )
-        ChessPiecesLayer(whiteBottom, uiActions = uiActions)
+        ChessPiecesLayer(chess = chess, whiteBottom, uiActions = uiActions)
         if (requestPromotesTo.value.first) {
             RequestPromotionPiece(requestPromotesTo, whiteBottom)
         }
@@ -367,7 +370,7 @@ fun PlayableChessBoard(
 }
 
 @Composable
-private fun BoxWithConstraintsScope.RequestPromotionPiece(requestPromotesTo: MutableState<Pair<Boolean, Move>>, whiteBottom: MutableState<Boolean>) {
+fun BoxWithConstraintsScope.RequestPromotionPiece(requestPromotesTo: MutableState<Pair<Boolean, Move>>, whiteBottom: MutableState<Boolean>) {
     val onClick: (Char) -> Unit = {
         requestPromotesTo.value = Pair(false, requestPromotesTo.value.second)
         requestPromotesTo.value.second.promotesTo = it

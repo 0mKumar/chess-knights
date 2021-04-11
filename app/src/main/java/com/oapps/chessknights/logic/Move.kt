@@ -51,5 +51,5 @@ class Move private constructor(
         return false
     }
 
-
+    fun algebraic() = from.loc() + to.loc()
 }

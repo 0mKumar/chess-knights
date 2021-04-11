@@ -1,8 +1,7 @@
-package com.oapps.chessknights.ui.chess
+package com.oapps.chessknights.ui.live
 
 import android.util.Log
 import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.ktx.auth
@@ -16,6 +15,7 @@ import com.oapps.chessknights.models.AppUser
 import com.oapps.chessknights.models.LiveChallenge
 import com.oapps.chessknights.models.TimeControl
 import com.oapps.chessknights.pushValue
+import com.oapps.chessknights.ui.chess.Piece
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 
@@ -71,13 +71,7 @@ class LiveGameViewModel : ViewModel() {
         List(8) { "P${'a' + it}2" },
         List(8) { "p${'a' + it}7" },
         listOf("ra8", "nb8", "bc8", "qd8", "ke8", "bf8", "ng8", "rh8")
-    ).flatten().map { Piece(it) }.let { pieces ->
-        val list = mutableStateListOf<Piece>()
-        pieces.forEach {
-            list.add(it)
-        }
-        return@let list
-    }
+    )
     val chess = Chess(pieces)
     val moves = mutableStateListOf<Move>()
 }

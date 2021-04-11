@@ -25,7 +25,6 @@ import com.google.firebase.database.ktx.database
 import com.google.firebase.ktx.Firebase
 import com.oapps.chessknights.*
 import com.oapps.chessknights.R
-import com.oapps.chessknights.ui.chess.LiveGameViewModel
 import com.oapps.chessknights.ui.chess.PlayableChessBoard
 import com.oapps.chessknights.ui.theme.ChessKnightsTheme
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -35,7 +34,7 @@ import kotlinx.coroutines.launch
 @ExperimentalCoroutinesApi
 @Composable
 fun LivePlayScreen(darkMode: MutableState<Boolean>, internetAvailable: Boolean, gameId: String? = "") {
-    val liveGameViewModel = viewModel(modelClass = LiveGameViewModel::class.java)
+    val liveGameViewModel = viewModel(LiveGameViewModel::class.java)
     LaunchedEffect(Firebase.auth.currentUser?.uid, gameId){
         if (gameId != null) {
 //            liveGameViewModel.setup(gameId)
@@ -73,7 +72,7 @@ fun LivePlayScreen(darkMode: MutableState<Boolean>, internetAvailable: Boolean, 
                 Modifier.padding(bottom = 32.dp, top = 16.dp),
                 R.drawable.bp
             )
-            PlayableChessBoard(whiteBottom, showCoordinates = showCoordinates)
+            PlayableChessBoard(liveGameViewModel.chess, whiteBottom, showCoordinates = showCoordinates)
             PlayerBanner(
                 "Om Kumar",
                 "(1459)",
@@ -120,18 +119,18 @@ fun LivePlayScreen(darkMode: MutableState<Boolean>, internetAvailable: Boolean, 
             }
 
             TextButton(onClick = {
-                Log.d(TAG, "AppContent: ${chess.generateFen()}")
+                Log.d(TAG, "AppContent: ${liveGameViewModel.chess.generateFen()}")
             }, Modifier.padding(top = 16.dp)) {
                 Text("Print fen", Modifier.padding(start = 8.dp))
             }
             TextButton(onClick = {
-                Log.d(TAG, "AppContent: ${chess.asciiBoard()}")
+                Log.d(TAG, "AppContent: ${liveGameViewModel.chess.asciiBoard()}")
             }, Modifier.padding(top = 16.dp)) {
                 Text("Print full board", Modifier.padding(start = 8.dp))
             }
             val coroutineScope = rememberCoroutineScope()
             TextButton(onClick = {
-                Log.d(TAG, "AppContent: ${chess.refreshPieces(coroutineScope)}")
+                Log.d(TAG, "AppContent: ${liveGameViewModel.chess.refreshPieces(coroutineScope)}")
             }, Modifier.padding(top = 16.dp)) {
                 Text("Force refresh", Modifier.padding(start = 8.dp))
             }

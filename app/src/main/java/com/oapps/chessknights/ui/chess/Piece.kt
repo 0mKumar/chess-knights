@@ -80,16 +80,18 @@ class Piece(
     }
 
     fun snap(
+        chess: Chess,
         coroutineScope: CoroutineScope,
         onFailed: (CoroutineScope.() -> Unit)? = null,
         onComplete: (CoroutineScope.(move: Move) -> Unit)? = null,
         requestPromotionTo: ((move: Move) -> Unit)? = null
     ) {
         val to = Vec(offsetFractionX.value.roundToInt(), offsetFractionY.value.roundToInt())
-        moveTo(coroutineScope, to, onFailed, false, onComplete, requestPromotionTo)
+        moveTo(chess, coroutineScope, to, onFailed, false, onComplete, requestPromotionTo)
     }
 
     fun moveTo(
+        chess: Chess,
         coroutineScope: CoroutineScope,
         toActual: Vec,
         onFailed: (CoroutineScope.() -> Unit)? = null,
@@ -122,7 +124,7 @@ class Piece(
                             move.props[Move.Props.CASTLING_ROOK_FROM_VEC] = rook.vec
                             val rookFinalPos =
                                 vec + if (who.toUpperCase() == 'K') Vec(1, 0) else Vec(-1, 0)
-                            rook.moveTo(coroutineScope, rookFinalPos, null, true)
+                            rook.moveTo(chess, coroutineScope, rookFinalPos, null, true)
                         } else {
                             to.x = move.from.x
                             to.y = move.from.y
@@ -170,6 +172,7 @@ class Piece(
     }
 
     fun justMoveTo(
+        chess: Chess,
         move: Move,
         onFailed: (() -> Unit)? = null,
         onComplete: ((move: Move) -> Unit)? = null,
@@ -192,7 +195,7 @@ class Piece(
                 move.props[Move.Props.CASTLING_ROOK_PIECE] = rook
                 move.props[Move.Props.CASTLING_ROOK_FROM_VEC] = rook.vec
                 val rookFinalPos = vec + if (who.toUpperCase() == 'K') Vec(1, 0) else Vec(-1, 0)
-                rook.justMoveTo(Move(chess, rook, rookFinalPos))
+                rook.justMoveTo(chess, Move(chess, rook, rookFinalPos))
             } else {
                 to.x = move.from.x
                 to.y = move.from.y

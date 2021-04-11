@@ -32,18 +32,32 @@ import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.ktx.Firebase
+import com.oapps.chessknights.db.Puzzle
 import com.oapps.chessknights.ui.AppDrawer
 import com.oapps.chessknights.ui.live.LivePlayScreen
 import com.oapps.chessknights.ui.LoginScreen
 import com.oapps.chessknights.ui.SignUpScreen
+import com.oapps.chessknights.ui.puzzles.PuzzleScreen
 import com.oapps.chessknights.ui.theme.ChessKnightsTheme
-import kotlinx.coroutines.ExperimentalCoroutinesApi
+import dagger.hilt.android.AndroidEntryPoint
+import io.realm.Realm
+import io.realm.RealmList
+import io.realm.kotlin.where
+import kotlinx.coroutines.*
+import java.util.concurrent.Executors
+import javax.inject.Inject
 
 val TAG = "Compose"
 
+@AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
     lateinit var loginLauncher: ActivityResultLauncher<Intent>
     lateinit var navController: NavHostController
+
+//    @Inject
+//    lateinit var realm: Realm
+
+    val singleThreadDispatcher: ExecutorCoroutineDispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
 
     @ExperimentalAnimationApi
     @ExperimentalCoroutinesApi
@@ -68,8 +82,6 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
-        chess.state.resetCastling("KkQq")
-
         val appBarMap = mapOf(
             "login" to "Login",
             "signup" to "Create Account",
@@ -78,7 +90,31 @@ class MainActivity : AppCompatActivity() {
         )
 
         setContent {
-            val internetAvailable by ConnectionLiveData(this).observeAsState(false)
+//            LaunchedEffect(key1 = this){
+//                withContext(singleThreadDispatcher){
+//                    val realm = Realm.getDefaultInstance()
+//                    realm.executeTransaction {
+//                        realm.insert(Puzzle(
+//                            pid = "p1",
+//                            fen = "fenstr",
+//                            moves = RealmList("m1", "m2"),
+//                            rating = 1200,
+//                            ratingDeviation = 50,
+//                            nbPlays = 100,
+//                            popularity = 200,
+//                            url = "www.url.com",
+//                            themes = RealmList("endgame", "mate2")
+//                        ))
+//                        Log.d(TAG, "onCreate: tried to insert puzzle")
+//                        val cnt = realm.where<Puzzle>().count()
+//                        Log.d(TAG, "onCreate: $cnt puzzles")
+//                        val first = realm.where<Puzzle>().findFirst()
+//                        Log.d(TAG, "onCreate: first = $first")
+//                    }
+//                    realm.close()
+//                }
+//            }
+            val internetAvailable by ConnectionLiveData(this).observeAsState(true)
             val darkMode = remember { mutableStateOf(true) }
             ChessKnightsTheme(window, darkTheme = darkMode.value) {
                 navController = rememberNavController()
@@ -103,7 +139,8 @@ class MainActivity : AppCompatActivity() {
 
                     NavHost(
                         navController = navController,
-                        startDestination = if(currentUser == null) "login" else "home"
+                        startDestination = "puzzle"
+//                        startDestination = if(currentUser == null) "login" else "home"
                     ) {
                         composable("error") {
                             Box(contentAlignment = Alignment.Center) {
@@ -121,6 +158,9 @@ class MainActivity : AppCompatActivity() {
                         }
                         composable("login") {
                             LoginScreen(::firebaseSignIn, navController)
+                        }
+                        composable("puzzle"){
+                            PuzzleScreen()
                         }
                     }
                 }

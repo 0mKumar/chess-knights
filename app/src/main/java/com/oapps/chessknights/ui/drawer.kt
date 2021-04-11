@@ -34,6 +34,9 @@ fun AppDrawer(navController: NavController, currentUser: FirebaseUser?, signOut:
         DrawerButton("Home"){
             navController.navigate("home")
         }
+        DrawerButton("Puzzles"){
+            navController.navigate("puzzle")
+        }
         DrawerButton("Live"){
             navController.navigate("live")
         }
