@@ -16,6 +16,7 @@ class Piece(
     var vec: Vec = Vec(),
     kind: Char = 'p'
 ) {
+    val debug = false
     val name: String by lazy {
         pieceName[kind.toUpperCase()] ?: "Unknown"
     }
@@ -31,8 +32,10 @@ class Piece(
 
     fun dragBy(coroutineScope: CoroutineScope, offset: Offset) {
         coroutineScope.launch {
-            async { offsetFractionX.dragBy(offset.x) }
-            async { offsetFractionY.dragBy(offset.y) }
+            awaitAll(
+                async { offsetFractionX.dragBy(offset.x) },
+                async { offsetFractionY.dragBy(offset.y) }
+            )
         }
     }
 
@@ -104,7 +107,7 @@ class Piece(
             async {
                 val move = Move(chess, this@Piece, to)
                 if (!skipCheck) {
-                    Log.d(TAG, "moveTo: trying to $move")
+                    if(debug) Log.d(TAG, "moveTo: trying to $move")
                     if (to.x !in 0..7 || to.y !in 0..7 || !MoveValidator.validateMove(
                             chess,
                             move
@@ -114,7 +117,7 @@ class Piece(
                         to.x = move.from.x
                         to.y = move.from.y
                         onFailed?.invoke(this)
-                        Log.d(TAG, "moveTo: $move failed, reverting to ${to.loc()}")
+                        if(debug) Log.d(TAG, "moveTo: $move failed, reverting to ${to.loc()}")
                     }
                     move.props.isCastling { who ->
                         val rook = (vec + if (who.toUpperCase() == 'K') Vec(3, 0) else Vec(-4, 0))
@@ -143,10 +146,10 @@ class Piece(
                     vec = to
                 }
                 if (move.props.isValid()) {
-                    Log.d(TAG, "moveTo: $move complete")
+                    if(debug) Log.d(TAG, "moveTo: $move complete")
                     move.props.isAttack {
                         chess.pieces.remove(it)
-                        Log.d(TAG, "moveTo: removing attacked piece $it")
+                        if(debug) Log.d(TAG, "moveTo: removing attacked piece $it")
                     }
                     if (move.isPromotion()) {
                         if (move.promotesTo == null) {
@@ -162,10 +165,10 @@ class Piece(
                     onComplete?.invoke(this, move)
                 }
                 if(MoveValidator.isCheck(chess, true)){
-                    Log.d(TAG, "moveTo: White is in check")
+                    if(debug) Log.d(TAG, "moveTo: White is in check")
                 }
                 if(MoveValidator.isCheck(chess, false)){
-                    Log.d(TAG, "moveTo: Black is in check")
+                    if(debug) Log.d(TAG, "moveTo: Black is in check")
                 }
             }
         }
@@ -180,13 +183,13 @@ class Piece(
         val to = move.to.copy()
 //        val move = Move(chess, this@Piece, to)
 
-        Log.d(TAG, "justMoveTo: $move")
+        if(debug) Log.d(TAG, "justMoveTo: $move")
         if (to.x !in 0..7 || to.y !in 0..7) {
             move.props[Move.Props.INVALID_BOOLEAN] = true
             to.x = move.from.x
             to.y = move.from.y
             onFailed?.invoke()
-            Log.d(TAG, "justMoveTo: $move failed, reverting to ${to.loc()}")
+            if(debug) Log.d(TAG, "justMoveTo: $move failed, reverting to ${to.loc()}")
         }
         move.props.isCastling { who ->
             val rook = (vec + if (who.toUpperCase() == 'K') Vec(3, 0) else Vec(-4, 0))
@@ -200,16 +203,16 @@ class Piece(
                 to.x = move.from.x
                 to.y = move.from.y
                 onFailed?.invoke()
-                Log.d(TAG, "justMoveTo: $move failed (rook not found!), reverting to ${to.loc()}")
+                if(debug) Log.d(TAG, "justMoveTo: $move failed (rook not found!), reverting to ${to.loc()}")
             }
         }
 
         vec = to
 
         if (move.props.isValid()) {
-            Log.d(TAG, "justMoveTo: $move complete")
+            if(debug) Log.d(TAG, "justMoveTo: $move complete")
             move.props.isAttack {
-                Log.d(TAG, "justMoveTo: removed attacked piece $it")
+                if(debug) Log.d(TAG, "justMoveTo: removed attacked piece $it")
                 chess.pieces.remove(it)
             }
             if (move.isPromotion()) {

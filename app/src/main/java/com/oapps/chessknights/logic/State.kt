@@ -2,8 +2,11 @@ package com.oapps.chessknights.logic
 
 import androidx.compose.runtime.*
 import com.oapps.chessknights.Vec
+import java.util.Stack
 
 class State() {
+    val history = Stack<Capture>()
+
     inner class Capture(state: State){
         val castling = state.castling
         val enPassantTarget = state.enPassantTarget.copy()
@@ -57,9 +60,11 @@ class State() {
         if(move.props.isAttack()){
             halfMoveClock = 0
         }
+        history.add(Capture(this))
     }
 
     fun reset(fen: String) {
+        history.clear()
         val data = fen.substringAfter(' ').split(' ')
         activeColor = when(data[0][0]){
             'w' -> Chess.Color.WHITE
@@ -74,5 +79,6 @@ class State() {
         halfMoveCount = data[3].toInt()
         val fullMoveCount = data[4].toInt()
         halfMoveCount = fullMoveCount * 2 + if (activeColor == Chess.Color.BLACK) 1 else 0
+        history.add(Capture(this))
     }
 }

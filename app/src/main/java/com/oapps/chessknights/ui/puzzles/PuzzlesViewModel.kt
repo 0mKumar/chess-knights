@@ -9,6 +9,7 @@ import com.google.firebase.auth.ktx.auth
 import com.google.firebase.database.ktx.database
 import com.google.firebase.database.ktx.getValue
 import com.google.firebase.ktx.Firebase
+import com.oapps.chessknights.FakeData
 import com.oapps.chessknights.await
 import com.oapps.chessknights.db.Puzzle
 import com.oapps.chessknights.logic.Chess
@@ -35,13 +36,14 @@ class PuzzlesViewModel : ViewModel() {
              * "PuzzleId" : "0000D", "FEN" : "5rk1/1p3ppp/pq3b2/8/8/1P1Q1N2/P4PPP/3R2K1 w - - 2 27", "Moves" : "d3d6 f8d8 d6d8 f6d8", "Rating" : "1562", "RatingDeviation" : "74", "Popularity" : "97", "NbPlays" : "2962", "Themes" : [ "advantage", "endgame", "short" ], "GameUrl" : "https://lichess.org/F8M8OS71#53"
              */
 
-            sendPuzzle(Puzzle(
-                pid = "0000D",
-                fen = "5rk1/1p3ppp/pq3b2/8/8/1P1Q1N2/P4PPP/3R2K1 w - - 2 27",
-                moves = RealmList(*("d3d6 f8d8 d6d8 f6d8".split(' ').toTypedArray())),
-                rating = 1562,
-                ratingDeviation = 74
-            ))
+//            sendPuzzle(Puzzle(
+//                pid = "0000D",
+//                fen = "5rk1/1p3ppp/pq3b2/8/8/1P1Q1N2/P4PPP/3R2K1 w - - 2 27",
+//                moves = RealmList(*("d3d6 f8d8 d6d8 f6d8".split(' ').toTypedArray())),
+//                rating = 1562,
+//                ratingDeviation = 74
+//            ))
+            sendPuzzle(FakeData.getRandomPuzzle())
         }
     }
 
@@ -66,6 +68,7 @@ class PuzzlesViewModel : ViewModel() {
                 chess.reset(p.fen)
                 initialHalfMoveCount = chess.state.halfMoveCount
             }
+            Log.d(TAG, "sendPuzzle: $p")
             puzzle.postValue(p)
         }
     }

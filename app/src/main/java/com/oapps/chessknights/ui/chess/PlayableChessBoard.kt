@@ -36,8 +36,6 @@ import com.oapps.chessknights.ui.theme.ChessLightColorPalette
 import com.oapps.chessknights.ui.theme.LocalChessColor
 import kotlin.math.roundToInt
 
-var tiles = mutableStateMapOf<Vec, Tile>()
-
 @Preview(showBackground = true)
 @Composable
 fun PlayableChessPreview() {
@@ -103,8 +101,8 @@ fun BoxWithConstraintsScope.ChessBackground(modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun BoxWithConstraintsScope.TileHighlightLayer(whiteBottom: MutableState<Boolean>){
-    tiles.values.forEach{
+fun BoxWithConstraintsScope.TileHighlightLayer(chess: Chess, whiteBottom: MutableState<Boolean>){
+    chess.tiles.values.forEach{
         TileBackgroundDecoration(tile = it, size = maxWidth / 8, whiteBottom = whiteBottom)
     }
 }
@@ -123,13 +121,13 @@ private fun BoxWithConstraintsScope.TileBackgroundDecoration(
         if(isWhite(tile.vec.x, tile.vec.y)) {
             when {
                 tile.contains(Tile.PIECE_SELECTED) -> palette.tileBackgroundPieceSelectedLight
-                tile.contains(Tile.TILE_HIGHLIGHT) -> palette.tileBackgroundHighlightLight
+                tile.contains(Tile.TILE_HIGHLIGHT) || tile.contains(Tile.HIGHLIGHT_MOVE_TO) || tile.contains(Tile.HIGHLIGHT_MOVE_FROM) -> palette.tileBackgroundHighlightLight
                 else -> Color.Transparent
             }
         }else{
             when {
                 tile.contains(Tile.PIECE_SELECTED) -> palette.tileBackgroundPieceSelectedDark
-                tile.contains(Tile.TILE_HIGHLIGHT) -> palette.tileBackgroundHighlightDark
+                tile.contains(Tile.TILE_HIGHLIGHT) || tile.contains(Tile.HIGHLIGHT_MOVE_TO) || tile.contains(Tile.HIGHLIGHT_MOVE_FROM) -> palette.tileBackgroundHighlightDark
                 else -> Color.Transparent
             }
         }
@@ -175,6 +173,7 @@ fun BoxWithConstraintsScope.ChessPiece(
                     maxHeight * 7 / 8
                 )
             )
+            .zIndex(if(piece.offsetFractionX.isRunning) 1f else 0f)
 //            .background(if (piece.selected) Color.Yellow.copy(alpha = 0.5f) else Color.Transparent)
             .size(size, size)
             .pointerInput(piece) {
@@ -188,9 +187,6 @@ fun BoxWithConstraintsScope.ChessPiece(
                     )
                 }
             }
-            .zIndex(if (piece.selected) 8f.also {
-                Log.d(TAG, "ChessPiece: $piece is high")
-            } else 0f)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
@@ -318,20 +314,20 @@ fun PlayableChessBoard(
                 return
             }
             piece.selected = true
-            tiles[piece.vec] =
-                (tiles[piece.vec] ?: Tile(piece.vec)).add(Tile.PIECE_SELECTED)
+            chess.tiles[piece.vec] =
+                (chess.tiles[piece.vec] ?: Tile(piece.vec)).add(Tile.PIECE_SELECTED)
 
             MoveValidator.validMoves(chess, piece).forEach{
-                tiles[it.to] =
-                    (tiles[it.to] ?: Tile(it.to)).add(Tile.TILE_HIGHLIGHT)
+                chess.tiles[it.to] =
+                    (chess.tiles[it.to] ?: Tile(it.to)).add(Tile.TILE_HIGHLIGHT)
             }
         }
 
         private fun deselectPiece(piece: Piece) {
             piece.selected = false
-            tiles[piece.vec] =
-                (tiles[piece.vec] ?: Tile(piece.vec)).remove(Tile.PIECE_SELECTED)
-            tiles.values.forEach{
+            chess.tiles[piece.vec] =
+                (chess.tiles[piece.vec] ?: Tile(piece.vec)).remove(Tile.PIECE_SELECTED)
+            chess.tiles.values.forEach{
                 it.remove(Tile.TILE_HIGHLIGHT)
             }
         }
@@ -357,7 +353,7 @@ fun PlayableChessBoard(
         if (showCoordinates) {
             Coordinates(whiteBottom)
         }
-        TileHighlightLayer(whiteBottom = whiteBottom)
+        TileHighlightLayer(chess = chess, whiteBottom = whiteBottom)
         ChessClickBase(
             whiteBottom = whiteBottom,
             uiActions = uiActions

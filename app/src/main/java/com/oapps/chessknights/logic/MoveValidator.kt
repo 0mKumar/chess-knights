@@ -9,6 +9,8 @@ import kotlin.math.absoluteValue
 import kotlin.math.sign
 
 object MoveValidator {
+    val debug = false
+    
     private fun ownPieceAttacked(
         move: Move,
         pieceAtDest: Piece?
@@ -56,7 +58,7 @@ object MoveValidator {
             if ((diff.y == 2 && move.from.y != 1) || (diff.y == -2 && move.from.y != 6)) return false
             if (diff.x.absoluteValue == 1) {
                 if (diff.y.absoluteValue != 1) return false
-                Log.d(TAG, "isPawnMove check: enpassant target = ${chess.state.enPassantString()}")
+                if(debug) Log.d(TAG, "isPawnMove check: enpassant target = ${chess.state.enPassantString()}")
                 if (pieceAtDest == null && move.to == chess.state.enPassantTarget) {
                     val attackedPiece =
                         chess.findPieceAt(chess.state.enPassantTarget + Vec(y = if (move.piece.isWhite()) -1 else 1))
@@ -74,7 +76,7 @@ object MoveValidator {
         if (check()) {
             if(diff.y.absoluteValue == 2){
                 move.props[Move.Props.ENPASSANT_TARGET_VEC] = move.from + Vec(0, diff.y.sign)
-                Log.d(TAG, "isPawnMove: ENPASSANT_TARGET_VEC $move")
+                if(debug) Log.d(TAG, "isPawnMove: ENPASSANT_TARGET_VEC $move")
             }
             return true
         }
@@ -139,19 +141,19 @@ object MoveValidator {
     }
 
     private fun revertMove(chess: Chess, move: Move) {
-        Log.d(TAG, "revertMove: $move")
+        if(debug) Log.d(TAG, "revertMove: $move")
         if (move.piece.vec == move.from) {
-            Log.d(TAG, "revertMove: move was already reverted")
+            if(debug) Log.d(TAG, "revertMove: move was already reverted")
             return
         }
         move.piece.vec = move.from
         if (move.isPromotion()) {
-            Log.d(TAG, "revertMove: promotion revert")
+            if(debug) Log.d(TAG, "revertMove: promotion revert")
             move.piece.kind = move.pieceKind
         }
         move.props.isAttack {
             chess.pieces.add(it)
-            Log.d(TAG, "revertMove: attack revert")
+            if(debug) Log.d(TAG, "revertMove: attack revert")
         }
         move.props.isCastling {
             move.props.getCastlingRookInitialVec()?.let {
@@ -161,27 +163,27 @@ object MoveValidator {
     }
 
     private fun isLegal(chess: Chess, move: Move): Boolean {
-        Log.d(TAG, "isLegal: checking $move")
+        if(debug) Log.d(TAG, "isLegal: checking $move")
         val ourKing = chess.pieces.find { it.kind == 'K'.ofColor(move.piece.isWhite()) }
         if (ourKing == null) {
-            Log.d(TAG, "isLegal: Where is our King lol! Chess state invalid")
+            if(debug) Log.d(TAG, "isLegal: Where is our King lol! Chess state invalid")
             return true
         }
-        Log.d(TAG, "isLegal: just move to called")
+        if(debug) Log.d(TAG, "isLegal: just move to called")
         move.piece.justMoveTo(chess, move)
 
         val oppPieces = chess.pieces.filter { it.isWhite() != move.piece.isWhite() }
         for (oppPiece in oppPieces) {
             val fakeMove = Move(chess, oppPiece, ourKing.vec)
             if (validateMove(chess, fakeMove, false) && fakeMove.props.isAttack()) {
-                Log.d(TAG, "isLegal: $move not legal, threat piece is $oppPiece")
+                if(debug) Log.d(TAG, "isLegal: $move not legal, threat piece is $oppPiece")
                 move.props[Move.Props.INVALID_BOOLEAN] = true
                 revertMove(chess, move)
                 return false
             }
         }
 
-        Log.d(TAG, "isLegal: revert called")
+        if(debug) Log.d(TAG, "isLegal: revert called")
         revertMove(chess, move)
         return true
     }
@@ -189,14 +191,14 @@ object MoveValidator {
     fun isCheck(chess: Chess, opponentColorWhite: Boolean): Boolean {
         val oppKing = chess.pieces.find { it.kind == 'K'.ofColor(opponentColorWhite) }
         if (oppKing == null) {
-            Log.d(TAG, "isCheck: Where is opponent's King lol! Chess state invalid")
+            if(debug) Log.d(TAG, "isCheck: Where is opponent's King lol! Chess state invalid")
             return false
         }
         val myPieces = chess.pieces.filter { it.isWhite() != opponentColorWhite }
         for (myPiece in myPieces) {
             val fakeMove = Move(chess, myPiece, oppKing.vec)
             if (validateMove(chess, fakeMove, false) && fakeMove.props.isAttack()) {
-                Log.d(TAG, "isCheck: from $myPiece")
+                if(debug) Log.d(TAG, "isCheck: from $myPiece")
                 return true
             }
         }
@@ -207,7 +209,7 @@ object MoveValidator {
     fun validateMove(chess: Chess, move: Move, checkIllegal: Boolean = true): Boolean {
         fun validateStep1(): Boolean {
             if (move.from == move.to) {
-                Log.d(TAG, "validateMove: to == dest")
+                if(debug) Log.d(TAG, "validateMove: to == dest")
                 return false
             }
             val pieceAtDest = chess.findPieceAt(move.to)
@@ -256,7 +258,7 @@ object MoveValidator {
                 if (kind == 'K') {
                     for (dir in dirs) {
                         val fakeMove = Move(chess, piece, piece.vec + dir)
-                        Log.d(TAG, "validMoves: Checking $fakeMove")
+                        if(debug) Log.d(TAG, "validMoves: Checking $fakeMove")
                         if (validateMove(chess, fakeMove).also { revertMove(chess, fakeMove) }) {
                             moves.add(fakeMove)
                         }
@@ -265,7 +267,7 @@ object MoveValidator {
                     for (dir in dirs) {
                         for (to in vectorsInDirection(piece.vec, dir)) {
                             val fakeMove = Move(chess, piece, to)
-                            Log.d(TAG, "validMoves: Checking $fakeMove")
+                            if(debug) Log.d(TAG, "validMoves: Checking $fakeMove")
                             if (validateMove(chess, fakeMove).also {
                                     revertMove(
                                         chess,
@@ -289,7 +291,7 @@ object MoveValidator {
                 dirs.add(Vec(0, 2 * ySign))
                 for (dir in dirs) {
                     val fakeMove = Move(chess, piece, piece.vec + dir)
-                    Log.d(TAG, "validMoves: Checking $fakeMove")
+                    if(debug) Log.d(TAG, "validMoves: Checking $fakeMove")
                     if (validateMove(chess, fakeMove).also { revertMove(chess, fakeMove) }) {
                         moves.add(fakeMove)
                     }
@@ -305,7 +307,7 @@ object MoveValidator {
                 }
                 for (dir in dirs) {
                     val fakeMove = Move(chess, piece, piece.vec + dir)
-                    Log.d(TAG, "validMoves: Checking $fakeMove")
+                    if(debug) Log.d(TAG, "validMoves: Checking $fakeMove")
                     if (validateMove(chess, fakeMove).also { revertMove(chess, fakeMove) }) {
                         moves.add(fakeMove)
                     }

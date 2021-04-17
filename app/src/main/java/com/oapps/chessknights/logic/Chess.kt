@@ -2,16 +2,20 @@ package com.oapps.chessknights.logic
 
 import android.util.Log
 import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.snapshots.SnapshotStateList
+import androidx.compose.runtime.mutableStateMapOf
 import com.oapps.chessknights.Vec
 import com.oapps.chessknights.ui.chess.Piece
+import com.oapps.chessknights.ui.chess.Tile
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 class Chess() {
+    val debug = false
     private val TAG = "Chess"
     val pieces = mutableStateListOf<Piece>()
     var state = State()
+
+    var tiles = mutableStateMapOf<Vec, Tile>()
 
     enum class Color{
         WHITE,
@@ -63,22 +67,23 @@ class Chess() {
         pieces.clear()
         pieces.addAll(piecesFromFen(fen))
         state.reset(fen)
+        tiles.clear()
     }
 
     fun piecesFromFen(fen: String): List<Piece>{
-        Log.d(TAG, "piecesFromFen: $fen")
+        if(debug) Log.d(TAG, "piecesFromFen: $fen")
         val pieces = mutableListOf<Piece>()
         fen.substringBefore(' ').split('/').forEachIndexed{ i, row ->
-            Log.d(TAG, "piecesFromFen: adding new row $i $row")
+            if(debug) Log.d(TAG, "piecesFromFen: adding new row $i $row")
             var currX = 0
             row.forEach{ kind ->
-                Log.d(TAG, "piecesFromFen: currX = $currX, kind = $kind")
+                if(debug) Log.d(TAG, "piecesFromFen: currX = $currX, kind = $kind")
                 if(kind.isDigit()){
                     currX += kind - '0'
                 }else{
                     val element = Piece(Vec(currX++, 7 - i), kind)
                     pieces.add(element)
-                    Log.d(TAG, "piecesFromFen: added piece $element")
+                    if(debug) Log.d(TAG, "piecesFromFen: added piece $element")
                 }
             }
         }

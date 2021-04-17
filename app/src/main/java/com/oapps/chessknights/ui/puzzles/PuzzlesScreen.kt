@@ -26,6 +26,7 @@ import com.oapps.chessknights.db.Puzzle
 import com.oapps.chessknights.logic.Chess
 import com.oapps.chessknights.logic.Move
 import com.oapps.chessknights.logic.MoveValidator
+import com.oapps.chessknights.logic.getOrMake
 import com.oapps.chessknights.ui.chess.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.awaitAll
@@ -37,7 +38,7 @@ import kotlin.math.roundToInt
 fun PuzzleScreen(puzzleId: String? = null) {
     Surface(color = MaterialTheme.colors.surface) {
         val whiteBottom = remember { mutableStateOf(false) }
-        var showCoordinates by mutableStateOf(true)
+        val showCoordinates by mutableStateOf(true)
         val scrollState = rememberScrollState()
         val puzzlesViewModel: PuzzlesViewModel = viewModel()
 
@@ -49,16 +50,18 @@ fun PuzzleScreen(puzzleId: String? = null) {
                 Log.d(TAG, "PuzzleScreen: new puzzle")
                 Log.d(TAG, "PuzzleScreen: ${puzzlesViewModel.puzzle}")
                 whiteBottom.value = puzzlesViewModel.chess.state.activeColor == Chess.Color.BLACK
+                Log.d(TAG, "PuzzleScreen: whiteBottom = ${whiteBottom.value}")
                 val puzzle = puzzlesViewModel.puzzle.value?:return@Observer
                 val move = puzzle.moves[0]?.let { Move(puzzlesViewModel.chess, it) }
                 Log.d(TAG, "PuzzleScreen: start move = $move")
                 if(move != null){
                     coroutineScope.launch {
-                        delay(1000)
+                        delay(1500)
                         puzzlesViewModel.chess.findPieceAt(move.from)?.moveTo(puzzlesViewModel.chess, coroutineScope, move.to, requestPromotionTo = {
                             it.promotesTo = move.promotesTo
                         }, onComplete = {
                             it.chess.state.update(it)
+                            highlightMove(it)
                         })
                     }
                 }
@@ -79,11 +82,18 @@ fun PuzzleScreen(puzzleId: String? = null) {
                 .padding(start = 8.dp, end = 8.dp)
                 .verticalScroll(scrollState)
         ) {
-            PuzzleChessBoard(chess = puzzlesViewModel.chess, whiteBottom = remember {
-                mutableStateOf(puzzlesViewModel.chess.state.activeColor == Chess.Color.BLACK)
-            }, showCoordinates = showCoordinates)
+            PuzzleChessBoard(chess = puzzlesViewModel.chess, whiteBottom = whiteBottom, showCoordinates = showCoordinates)
         }
     }
+}
+
+fun highlightMove(move: Move){
+    move.chess.tiles.values.forEach{
+        it.remove(Tile.HIGHLIGHT_MOVE_TO)
+        it.remove(Tile.HIGHLIGHT_MOVE_FROM)
+    }
+    move.chess.tiles.getOrMake(move.to).add(Tile.HIGHLIGHT_MOVE_TO)
+    move.chess.tiles.getOrMake(move.from).add(Tile.HIGHLIGHT_MOVE_FROM)
 }
 
 @Composable
@@ -114,23 +124,31 @@ fun PuzzleChessBoard(
                 to,
                 requestPromotionTo = requestPromotionTo,
                 onComplete = { completedMove ->
+                    highlightMove(completedMove)
                     val incorrect = puzzlesViewModel.isInCorrect(completedMove)
                     chess.state.update(completedMove)
 
-                    if(incorrect){
-                        Log.d(TAG, "movePieceToRequest: INCORRECT MOVE")
-                        return@moveTo
-                    }else if(puzzlesViewModel.puzzleComplete()){
-                        Log.d(TAG, "movePieceToRequest: PUZZLE COMPLETE")
-                        return@moveTo
+                    coroutineScope.launch {
+                        if(incorrect){
+                            Log.d(TAG, "movePieceToRequest: INCORRECT MOVE")
+                            delay(1500)
+                            puzzlesViewModel.newPuzzle()
+                        }else if(puzzlesViewModel.puzzleComplete()){
+                            Log.d(TAG, "movePieceToRequest: PUZZLE COMPLETE")
+                            delay(1500)
+                            puzzlesViewModel.newPuzzle()
+                        }
                     }
-                    
+
+                    if(incorrect || puzzlesViewModel.puzzleComplete()) return@moveTo
+
                     if(!puzzlesViewModel.puzzleComplete() && !puzzlesViewModel.isMyTurn() && !incorrect){
                         Log.d(TAG, "movePieceToRequest: next move is computers move")
                         val move = puzzlesViewModel.nextPuzzleMove()?: return@moveTo
                         coroutineScope.launch {
-                            delay(500)
+                            delay(1500)
                             move.piece.moveTo(chess, coroutineScope, move.to, requestPromotionTo = {it.promotesTo = move.promotesTo}, onComplete = {
+                                highlightMove(it)
                                 chess.state.update(it)
                             })
                         }
@@ -173,20 +191,20 @@ fun PuzzleChessBoard(
                 return
             }
             piece.selected = true
-            tiles[piece.vec] =
-                (tiles[piece.vec] ?: Tile(piece.vec)).add(Tile.PIECE_SELECTED)
+            chess.tiles[piece.vec] =
+                (chess.tiles[piece.vec] ?: Tile(piece.vec)).add(Tile.PIECE_SELECTED)
 
             MoveValidator.validMoves(chess, piece).forEach {
-                tiles[it.to] =
-                    (tiles[it.to] ?: Tile(it.to)).add(Tile.TILE_HIGHLIGHT)
+                chess.tiles[it.to] =
+                    (chess.tiles[it.to] ?: Tile(it.to)).add(Tile.TILE_HIGHLIGHT)
             }
         }
 
         private fun deselectPiece(piece: Piece) {
             piece.selected = false
-            tiles[piece.vec] =
-                (tiles[piece.vec] ?: Tile(piece.vec)).remove(Tile.PIECE_SELECTED)
-            tiles.values.forEach {
+            chess.tiles[piece.vec] =
+                (chess.tiles[piece.vec] ?: Tile(piece.vec)).remove(Tile.PIECE_SELECTED)
+            chess.tiles.values.forEach {
                 it.remove(Tile.TILE_HIGHLIGHT)
             }
         }
@@ -218,7 +236,7 @@ fun PuzzleChessBoard(
         if (showCoordinates) {
             Coordinates(whiteBottom)
         }
-        TileHighlightLayer(whiteBottom = whiteBottom)
+        TileHighlightLayer(chess = chess, whiteBottom = whiteBottom)
         ChessClickBase(
             whiteBottom = whiteBottom,
             uiActions = uiActions
