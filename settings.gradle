@@ -10,3 +10,4 @@ rootProject.name = "Chess Knights"
 //include ':app'
 include ':chess'
 include ':app2'
+include ':audio'
