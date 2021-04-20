@@ -32,6 +32,7 @@ import com.oapps.knightschess.R
 import com.oapps.lib.chess.*
 import kotlinx.coroutines.delay
 import java.lang.Math.cbrt
+import java.lang.Math.random
 import kotlin.math.roundToInt
 
 private val TAG = "ChessUI"
@@ -104,11 +105,11 @@ fun DynamicChessBoard(
         )
     }
     LaunchedEffect(true) {
-        while (false) {
-            delay(2000)
+        while (true) {
+            delay(1000)
 
-            pieces.first().animateTo(IVec((0..7).random(), (0..7).random()))
-//            pieces.values.random().kind = "PKQRN".random().ofColor(random() < 0.5)
+            pieces.random().animateTo(IVec((0..7).random(), (0..7).random()))
+//            pieces.random().kind = "PKQRN".random().ofColor(random() < 0.5)
         }
     }
 
@@ -118,11 +119,13 @@ fun DynamicChessBoard(
         val dragEvent = remember {
             object : DragEvent() {
                 override fun onPieceDragStart(piece: DynamicPiece, offset: Offset) {
+                    Log.d(TAG, "onPieceDragStart: ")
                     draggedPiece = piece
                     piece.startDrag()
                 }
 
                 override fun onPieceDragEnd(piece: DynamicPiece) {
+                    Log.d(TAG, "onPieceDragEnd: ")
                     draggedPiece = null
                     piece.stopDrag()
                     val to = IVec(
@@ -138,6 +141,7 @@ fun DynamicChessBoard(
                     dragAmount: Offset,
                     scope: PointerInputScope
                 ) {
+                    Log.d(TAG, "onPieceDrag: ")
                     change.consumeAllChanges()
                     val drag = dragAmount
                         .div(with(scope){size.toPx()})
@@ -149,6 +153,9 @@ fun DynamicChessBoard(
         ChessBackground()
         DynamicPieceLayer(pieces, whiteBottom = whiteBottom.value, dragEvent = dragEvent) { it, cancelled ->
             Log.d(TAG, "DynamicChessBoard: animated $it, cancelled = $cancelled")
+            if(!cancelled){
+
+            }
             if (it.vec != it.lastVec)
                 soundManager?.play(R.raw.move)
         }
@@ -236,28 +243,6 @@ private fun DynamicPieceImage(
     dragEvent: DragEvent,
     onFinishAnimation: ((DynamicPiece, cancelled: Boolean) -> Unit)? = null,
 ) {
-//    val transitionState = remember(piece) {
-//        MutableTransitionState(vec)
-//    }
-//    val transition = updateTransition(transitionState, label = "piece")
-//
-//    val duration = (250 * (transitionState.currentState - vec)
-//        .absolute.let {
-//            cbrt((it.y + it.x).toDouble())
-//        }).toInt()
-//
-//    piece.offset = transition.animateOffset(transitionSpec = {
-//        tween(
-//            duration,
-//            0,
-//            FastOutSlowInEasing
-//        )
-//    }, label = "Offset") {
-//        Offset(it.x.toFloat(), it.y.toFloat())
-//    }
-//
-//    transitionState.targetState = vec
-
     piece.offset = animatedPieceOffset(piece = piece, target = vec) {
         onFinishAnimation?.invoke(piece, it)
         Log.d(TAG, "DynamicPieceImage: animation complete")
@@ -303,48 +288,44 @@ fun animatedPieceOffset(
     target: IVec,
     onComplete: ((cancelled: Boolean) -> Unit)? = null
 ): Offset {
-    // Create an AnimationState to be updated by the animation.
-    val animationState =
-        remember(piece) { AnimationState(Offset.VectorConverter, target.toOffset()) }
 
-    // Launch the suspend animation into the composition's CoroutineContext, and pass
-    // `target` to LaunchedEffect so that when`target` changes the old animation job is
-    // canceled, and a new animation is created with a new target.
-    LaunchedEffect(target) {
-        // This starts an animation that updates the animationState on each frame
+    val animation = remember(piece) {
+        Animatable(target.toOffset(), Offset.VectorConverter)
+    }
 
-//        if (piece.dragOffset != piece.offset) {
-//            animationState.animateTo(piece.dragOffset, tween(0, easing = LinearEasing))
-//        }
+    var running by remember {
+        mutableStateOf(false)
+    }
+
+    LaunchedEffect(piece.dragOffset){
+        Log.d(TAG, "animatedPieceOffset: new drag = ${piece.dragOffset}")
+        animation.snapTo(piece.dragOffset)
+        running = false
+    }
+
+    LaunchedEffect(target, piece.dragging) {
+        if(piece.dragging) return@LaunchedEffect
 
         val targetOffset = target.toOffset()
 
-        if (!animationState.isFinished) {
+        if (running) {
             onComplete?.invoke(true)
         }
 
-        animationState.animateTo(
+        running = true
+        val res = animation.animateTo(
             targetValue = targetOffset,
-            // Use a low stiffness spring. This can be replaced with any type of `AnimationSpec`
             animationSpec = tween(
                 250 * cbrt(
-                    (targetOffset - animationState.value).getDistance()
+                    (targetOffset - animation.value).getDistance()
                         .toDouble()
                 ).toInt()
             ),
-//            animationSpec = spring(1f, 200f),
-            // If the previous animation was interrupted (i.e. not finished), configure the
-            // animation as a sequential animation to continue from the time the animation was
-            // interrupted.
-            sequentialAnimation = !animationState.isFinished
         )
-        // When the function above returns, the animation has finished.
         onComplete?.invoke(false)
+        running = false
     }
-    // Return the value updated by the animation.
-    return animationState.value.also {
-        piece.dragOffset = it
-    }
+    return animation.value
 }
 
 @Composable

@@ -16,7 +16,7 @@ class DynamicPiece(piece: Piece) {
     var dragging by mutableStateOf(false)
         private set
 
-    val drawOffset get() = if(dragging) dragOffset else offset
+    val drawOffset get() = offset
 
     var vec by mutableStateOf(piece.vec)
         private set
