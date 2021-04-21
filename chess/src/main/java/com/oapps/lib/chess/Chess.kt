@@ -33,6 +33,7 @@ class Chess(fen: String = startPos, var options: Options = Options(), val valida
     }
 
     fun generateFen() = _pieces.generateFen()
+    fun generateFullFen() = generateFen() + " " + state.generateFenExtra()
 
     fun printAsciiBoard(){
         val board = Array(8){Array(8){ mutableListOf<Char>() } }

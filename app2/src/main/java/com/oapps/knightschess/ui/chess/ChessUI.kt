@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Surface
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -27,10 +29,13 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import com.google.accompanist.coil.CoilImage
 import com.oapps.audio.SoundManager
 import com.oapps.knightschess.R
 import com.oapps.lib.chess.*
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import java.lang.Math.cbrt
 import java.lang.Math.random
 import kotlin.math.roundToInt
@@ -91,76 +96,113 @@ fun StaticChessBoard(modifier: Modifier = Modifier, fen: String, whiteBottom: Bo
 @Composable
 fun DynamicChessBoard(
     modifier: Modifier = Modifier,
+    chess: Chess = remember { Chess() },
     whiteBottom: MutableState<Boolean> = remember {
         mutableStateOf(true)
     },
     soundManager: SoundManager? = null
 ) {
     val pieces = remember {
-        mutableStateListOf(
-            DynamicPiece(Piece(IVec(1, 1), 'k')),
-            DynamicPiece(Piece(IVec(2, 1), 'Q')),
-            DynamicPiece(Piece(IVec(1, 7), 'P')),
-            DynamicPiece(Piece(IVec(7, 1), 'p')),
-        )
+        chess.pieces
+            .values
+            .map { DynamicPiece(it) }
+            .toMutableStateList()
     }
+
     LaunchedEffect(true) {
-        while (true) {
+        while (false) {
             delay(1000)
 
             pieces.random().animateTo(IVec((0..7).random(), (0..7).random()))
 //            pieces.random().kind = "PKQRN".random().ofColor(random() < 0.5)
         }
     }
-
-    ChessBox(modifier) {
-        val size = maxWidth / 8
-
-        val dragEvent = remember {
-            object : DragEvent() {
-                override fun onPieceDragStart(piece: DynamicPiece, offset: Offset) {
-                    Log.d(TAG, "onPieceDragStart: ")
-                    draggedPiece = piece
-                    piece.startDrag()
-                }
-
-                override fun onPieceDragEnd(piece: DynamicPiece) {
-                    Log.d(TAG, "onPieceDragEnd: ")
-                    draggedPiece = null
-                    piece.stopDrag()
-                    val to = IVec(
-                        piece.dragOffset.x.roundToInt(),
-                        piece.dragOffset.y.roundToInt()
-                    )
-                    piece.animateTo(to)
-                }
-
-                override fun onPieceDrag(
-                    piece: DynamicPiece,
-                    change: PointerInputChange,
-                    dragAmount: Offset,
-                    scope: PointerInputScope
-                ) {
-                    Log.d(TAG, "onPieceDrag: ")
-                    change.consumeAllChanges()
-                    val drag = dragAmount
-                        .div(with(scope){size.toPx()})
-                        .transformDirection(whiteBottom.value)
-                    piece.dragOffset += drag
-                }
-            }
-        }
-        ChessBackground()
-        DynamicPieceLayer(pieces, whiteBottom = whiteBottom.value, dragEvent = dragEvent) { it, cancelled ->
-            Log.d(TAG, "DynamicChessBoard: animated $it, cancelled = $cancelled")
-            if(!cancelled){
-
-            }
-            if (it.vec != it.lastVec)
-                soundManager?.play(R.raw.move)
-        }
-//        InteractionLayer(pieces = pieces, whiteBottom = whiteBottom, dragEvent = dragEvent)
+    var fen by remember {
+        mutableStateOf(chess.generateFen())
     }
+
+    Column {
+
+        ChessBox(modifier) {
+            val size = maxWidth / 8
+
+            val dragEvent = remember {
+                object : DragEvent() {
+                    override fun onPieceDragStart(piece: DynamicPiece, offset: Offset) {
+                        Log.d(TAG, "onPieceDragStart: ")
+                        draggedPiece = piece
+                        piece.startDrag()
+                    }
+
+                    override fun onPieceDragEnd(piece: DynamicPiece) {
+                        Log.d(TAG, "onPieceDragEnd: ")
+                        draggedPiece = null
+                        piece.stopDrag()
+                        val droppedTo = IVec(
+                            piece.dragOffset.x.roundToInt(),
+                            piece.dragOffset.y.roundToInt()
+                        )
+                        val move = Move(chess, Piece(piece.vec, piece.kind), droppedTo)
+                        if (move.isValid()) {
+                            chess.makeMove(move)
+                            fen = chess.generateFen()
+                            move.isAttack { attackedPiece ->
+                                pieces.find {
+                                    it.vec == attackedPiece.vec && it.kind == attackedPiece.kind
+                                }?.let {
+                                    pieces.remove(it)
+                                }
+
+                            }
+                            piece.animateTo(move.to, playSound = true)
+                            move.isCastling { rook, to, _ ->
+                                pieces.find { it.vec == rook.vec && it.kind == rook.kind }
+                                    ?.animateTo(to)
+                            }
+                            move.isPromotion {
+                                piece.kind = it ?: 'Q'.ofColor(piece.kind.color)
+                            }
+                        } else {
+                            piece.animateTo(piece.vec)
+                        }
+                    }
+
+                    override fun onPieceDrag(
+                        piece: DynamicPiece,
+                        change: PointerInputChange,
+                        dragAmount: Offset,
+                        scope: PointerInputScope
+                    ) {
+                        Log.d(TAG, "onPieceDrag: ")
+                        change.consumeAllChanges()
+                        val drag = dragAmount
+                            .div(with(scope) { size.toPx() })
+                            .transformDirection(whiteBottom.value)
+                        piece.dragOffset += drag
+                    }
+                }
+            }
+            ChessBackground()
+            DynamicPieceLayer(
+                pieces,
+                whiteBottom = whiteBottom.value,
+                dragEvent = dragEvent
+            ) { it, cancelled ->
+                Log.d(TAG, "DynamicChessBoard: animated $it, cancelled = $cancelled")
+                if (!cancelled) {
+
+                }
+                if (it.playSoundAtEnd && it.vec != it.lastVec) {
+                    soundManager?.play(R.raw.move)
+                    it.soundPlayed()
+                }
+            }
+//        InteractionLayer(pieces = pieces, whiteBottom = whiteBottom, dragEvent = dragEvent)
+        }
+        StaticChessBoard(fen = fen, modifier = Modifier.fillMaxWidth(0.5f))
+
+    }
+
 }
 
 private val painterResourceForPiece = mapOf(
@@ -209,8 +251,6 @@ private fun BoxWithConstraintsScope.DynamicPieceLayer(
     for (piece in pieces) {
         DynamicPieceImage(
             piece,
-            piece.kind,
-            piece.vec,
             size = size,
             whiteBottom,
             onFinishAnimation = onFinishAnimation,
@@ -236,24 +276,22 @@ private fun StaticPieceImage(piece: Piece, size: Dp, whiteBottom: Boolean = true
 @Composable
 private fun DynamicPieceImage(
     piece: DynamicPiece,
-    kind: Char,
-    vec: IVec,
     size: Dp,
     whiteBottom: Boolean = true,
     dragEvent: DragEvent,
     onFinishAnimation: ((DynamicPiece, cancelled: Boolean) -> Unit)? = null,
 ) {
-    piece.offset = animatedPieceOffset(piece = piece, target = vec) {
+    piece.offset = animatedPieceOffset(piece = piece) {
         onFinishAnimation?.invoke(piece, it)
         Log.d(TAG, "DynamicPieceImage: animation complete")
     }
 
-    Crossfade(
-        kind, modifier = Modifier
+    Image(
+        modifier = Modifier
             .size(size, size)
             .offset(
-                size * piece.drawOffset.x.transformX(whiteBottom, 7f),
-                size * piece.drawOffset.y.transformY(whiteBottom, 7f)
+                size * piece.offset.x.transformX(whiteBottom, 7f),
+                size * piece.offset.y.transformY(whiteBottom, 7f)
             )
             .pointerInput(piece) {
                 detectDragGestures(
@@ -271,40 +309,33 @@ private fun DynamicPieceImage(
                     }
                 )
             },
-        animationSpec = spring()
-    ) {
-        Image(
-            modifier = Modifier
-                .fillMaxSize(),
-            painter = painterResource(id = painterResourceForPiece[kind] ?: R.drawable.bn),
-            contentDescription = pieceName[kind]
-        )
-    }
+        painter = painterResource(id = painterResourceForPiece[piece.kind] ?: R.drawable.bn),
+        contentDescription = pieceName[piece.kind]
+    )
 }
 
 @Composable
 fun animatedPieceOffset(
     piece: DynamicPiece,
-    target: IVec,
     onComplete: ((cancelled: Boolean) -> Unit)? = null
 ): Offset {
 
-    val animation = remember(piece) {
-        Animatable(target.toOffset(), Offset.VectorConverter)
-    }
+    val target = piece.vec
 
     var running by remember {
         mutableStateOf(false)
     }
 
-    LaunchedEffect(piece.dragOffset){
+    LaunchedEffect(piece.dragOffset) {
         Log.d(TAG, "animatedPieceOffset: new drag = ${piece.dragOffset}")
-        animation.snapTo(piece.dragOffset)
+        piece.animation.snapTo(piece.dragOffset)
         running = false
     }
 
     LaunchedEffect(target, piece.dragging) {
-        if(piece.dragging) return@LaunchedEffect
+        if(!piece.animate) return@LaunchedEffect
+        if (piece.dragging) return@LaunchedEffect
+
 
         val targetOffset = target.toOffset()
 
@@ -313,11 +344,14 @@ fun animatedPieceOffset(
         }
 
         running = true
-        val res = animation.animateTo(
+
+        piece.animate = false
+
+        val res = piece.animation.animateTo(
             targetValue = targetOffset,
             animationSpec = tween(
                 250 * cbrt(
-                    (targetOffset - animation.value).getDistance()
+                    (targetOffset - piece.animation.value).getDistance()
                         .toDouble()
                 ).toInt()
             ),
@@ -325,7 +359,7 @@ fun animatedPieceOffset(
         onComplete?.invoke(false)
         running = false
     }
-    return animation.value
+    return piece.animation.value
 }
 
 @Composable
@@ -450,13 +484,20 @@ fun BoxWithConstraintsScope.InteractionLayer(
     )
 }
 
-open class DragEvent{
+open class DragEvent {
     var draggedPiece: DynamicPiece? = null
-    open fun onPieceDragStart(piece: DynamicPiece, offset: Offset){}
-    open fun onPieceDragEnd(piece: DynamicPiece){}
-    open fun onPieceDrag(piece: DynamicPiece, change: PointerInputChange, dragAmount: Offset, scope: PointerInputScope){}
-    open fun onDragStart(offset: Offset){}
-    open fun onDragEnd(){}
-    open fun onDrag(change: PointerInputChange, dragAmount: Offset){}
+    open fun onPieceDragStart(piece: DynamicPiece, offset: Offset) {}
+    open fun onPieceDragEnd(piece: DynamicPiece) {}
+    open fun onPieceDrag(
+        piece: DynamicPiece,
+        change: PointerInputChange,
+        dragAmount: Offset,
+        scope: PointerInputScope
+    ) {
+    }
+
+    open fun onDragStart(offset: Offset) {}
+    open fun onDragEnd() {}
+    open fun onDrag(change: PointerInputChange, dragAmount: Offset) {}
 }
 

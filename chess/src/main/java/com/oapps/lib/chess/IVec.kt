@@ -7,7 +7,7 @@ data class IVec(val x: Int = 0, val y: Int = 0): Comparable<IVec> {
 
     constructor(notation: String) : this(notation[0] - 'a', notation[1] - '1')
 
-    override fun toString() = "IVec($x, $y, $loc)"
+    override fun toString() = "($x,$y,$loc)"
 
     operator fun plus(other: IVec) = IVec(x + other.x, y + other.y)
     operator fun minus(other: IVec) = IVec(x - other.x, y - other.y)

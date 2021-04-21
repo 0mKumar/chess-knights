@@ -47,7 +47,7 @@ class State(fen: String) {
         if(it.isEmpty()) "-" else it
     }
 
-    fun enPassantString() = enPassantTarget.loc
+    fun enPassantString() = if(enPassantTarget != IVec.None) enPassantTarget.loc else "-"
 
     fun activeColorString() = when (activeColor) {
         true -> "w"
@@ -104,6 +104,8 @@ class State(fen: String) {
     }
 
     fun capture() = Capture(this)
+
+    fun generateFenExtra() = activeColorString() + " " + castlingString() + " " + enPassantString() + " " + halfMoveClock + " " + fullMoveCount
 
     override fun toString(): String {
         return "State(halfMoveClock=$halfMoveClock, fullMoveCount=$fullMoveCount, castling='$castling', enPassantTarget=$enPassantTarget, activeColor=$activeColor)"

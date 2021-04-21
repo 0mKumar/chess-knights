@@ -7,6 +7,7 @@ sealed class MoveValidator {
     abstract fun validate(move: Move, checkIllegal: Boolean = true): ValidationResult
 
     inner class ValidationResult(var valid: Boolean = true) {
+        var castlingRookFinalPos: IVec? = null
         var castling: Char? = null
         var promotion: Char? = null
         var createdEnPassantTarget: IVec? = null
@@ -16,7 +17,6 @@ sealed class MoveValidator {
         override fun toString(): String {
             return "ValidationResult(valid=$valid, castling=$castling, promotion=$promotion, createdEnPassantTarget=$createdEnPassantTarget, enPassantCapturedPiece=$enPassantCapturedPiece, capture=$capture, castleRook=$castleRook)"
         }
-
     }
 
     fun preCheckFails(move: Move): Boolean {
@@ -160,17 +160,16 @@ sealed class MoveValidator {
         }
 
         private fun validateBishopFails(move: Move, res: ValidationResult): Boolean {
-            if (move.diff.sign.absolute != IVec(1, 1)) return true
+            println("StandardValidator.validateBishopFails $move")
+            if (move.diff.absolute.run{x != y}) return true
+            println("StandardValidator.validateBishopFails 1")
             if (hasPieceInLine(move.piece.vec, move.diff.sign, move.to, move.chess)) return true
+            println("StandardValidator.validateBishopFails 2")
             return false
         }
 
         private fun validateQueenFails(move: Move, res: ValidationResult): Boolean {
-            if (move.diff.x != 0 && move.diff.y != 0 && move.diff.sign.absolute != IVec(
-                    1,
-                    1
-                )
-            ) return true
+            if (move.diff.x != 0 && move.diff.y != 0 && move.diff.absolute.run{x != y}) return true
             if (hasPieceInLine(move.piece.vec, move.diff.sign, move.to, move.chess)) return true
             return false
         }
@@ -180,12 +179,16 @@ sealed class MoveValidator {
             res: ValidationResult,
             checkIllegal: Boolean
         ): Boolean {
+            println("StandardValidator.validateKingFails")
+            println("move = [${move}], res = [${res}], checkIllegal = [${checkIllegal}]")
             if (move.diff.y == 0 && move.diff.x.absoluteValue == 2) {
+                println("checking castle")
                 val castlingType = if (move.diff.x > 0) 'K' else 'Q'
                 if (move.chess.state.canCastle(castlingType.ofColor(move.piece.isWhite))) {
                     val castleRook =
                         move.chess.pieces[move.piece.vec.copy(x = if (castlingType.asWhite == 'K') 7 else 0)]
                     if (castleRook == null || !castleRook.isRook) {
+                        println("Rook not found")
                         return true
                     }
                     if (hasPieceInLine(
@@ -195,6 +198,7 @@ sealed class MoveValidator {
                             move.chess
                         )
                     ) {
+                        println("has piece in between")
                         return true
                     }
 //                    if (isCheck(move.chess, move.color, move.piece)) {
@@ -217,11 +221,15 @@ sealed class MoveValidator {
                     // todo: also validate no check in path of king
                     res.castling = castlingType
                     res.castleRook = castleRook
+                    res.castlingRookFinalPos = move.piece.vec + move.diff.sign
+                    println("Castle possible")
                 } else {
                     return true
                 }
             }
-            if (res.castling == null && move.diff.sign.let { it.x > 1 || it.y > 1 }) return true
+
+            if (res.castling == null && move.diff.absolute.let { it.x > 1 || it.y > 1 }) return true
+
             return false
         }
 
