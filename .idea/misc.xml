@@ -53,6 +53,16 @@
         <entry key="app/src/main/res/font/source_sans_pro_semibold.xml" value="0.2777777777777778" />
         <entry key="app/src/main/res/font/ubuntu.xml" value="0.3509259259259259" />
         <entry key="app/src/main/res/font/ubuntu_light.xml" value="0.3509259259259259" />
+        <entry key="app2/src/main/res/drawable/alpha_bb.xml" value="0.3671794871794872" />
+        <entry key="app2/src/main/res/drawable/alpha_bq.xml" value="0.3671794871794872" />
+        <entry key="app2/src/main/res/drawable/chessnut_bn.xml" value="0.3671794871794872" />
+        <entry key="app2/src/main/res/drawable/fresca_wr.xml" value="0.3671794871794872" />
+        <entry key="app2/src/main/res/drawable/icpieces_wp.xml" value="0.3671794871794872" />
+        <entry key="app2/src/main/res/drawable/libra_bp.xml" value="0.3671794871794872" />
+        <entry key="app2/src/main/res/drawable/mono_p_.xml" value="0.3671794871794872" />
+        <entry key="app2/src/main/res/drawable/riohacha_bp.xml" value="0.3671794871794872" />
+        <entry key="app2/src/main/res/drawable/staunty_bk.xml" value="0.3671794871794872" />
+        <entry key="app2/src/main/res/drawable/tatiana_wr.xml" value="0.3671794871794872" />
       </map>
     </option>
   </component>

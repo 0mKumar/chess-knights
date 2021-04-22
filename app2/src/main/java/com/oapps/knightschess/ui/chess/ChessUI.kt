@@ -105,42 +105,41 @@ fun DynamicChessBoard(
     val pieces = remember {
         chess.pieces
             .values
-            .map { DynamicPiece(it) }
+            .map { DynamicPiece2(it) }
             .toMutableStateList()
     }
 
-    LaunchedEffect(true) {
-        while (false) {
-            delay(1000)
-
-            pieces.random().animateTo(IVec((0..7).random(), (0..7).random()))
-//            pieces.random().kind = "PKQRN".random().ofColor(random() < 0.5)
-        }
-    }
+//    LaunchedEffect(true) {
+//        delay(5000)
+//        for (i in 0..10) {
+//            pieces.first().moveTo(this, IVec((0..7).random(), (0..7).random())){
+//                Log.d(TAG, "DynamicChessBoard: move anim cancelled = $it")
+//            }
+////            pieces.random().kind = "PKQRN".random().ofColor(random() < 0.5)
+//        }
+//    }
     var fen by remember {
         mutableStateOf(chess.generateFen())
     }
 
     Column {
-
         ChessBox(modifier) {
             val size = maxWidth / 8
+            val coroutineScope = rememberCoroutineScope()
 
             val dragEvent = remember {
                 object : DragEvent() {
-                    override fun onPieceDragStart(piece: DynamicPiece, offset: Offset) {
+                    override fun onPieceDragStart(piece: DynamicPiece2, offset: Offset) {
                         Log.d(TAG, "onPieceDragStart: ")
                         draggedPiece = piece
-                        piece.startDrag()
                     }
 
-                    override fun onPieceDragEnd(piece: DynamicPiece) {
+                    override fun onPieceDragEnd(piece: DynamicPiece2) {
                         Log.d(TAG, "onPieceDragEnd: ")
                         draggedPiece = null
-                        piece.stopDrag()
                         val droppedTo = IVec(
-                            piece.dragOffset.x.roundToInt(),
-                            piece.dragOffset.y.roundToInt()
+                            piece.offset.x.roundToInt(),
+                            piece.offset.y.roundToInt()
                         )
                         val move = Move(chess, Piece(piece.vec, piece.kind), droppedTo)
                         if (move.isValid()) {
@@ -154,21 +153,23 @@ fun DynamicChessBoard(
                                 }
 
                             }
-                            piece.animateTo(move.to, playSound = true)
+                            piece.moveTo(coroutineScope, move.to){
+                                soundManager?.play(R.raw.move)
+                            }
                             move.isCastling { rook, to, _ ->
                                 pieces.find { it.vec == rook.vec && it.kind == rook.kind }
-                                    ?.animateTo(to)
+                                    ?.moveTo(coroutineScope, to)
                             }
                             move.isPromotion {
                                 piece.kind = it ?: 'Q'.ofColor(piece.kind.color)
                             }
                         } else {
-                            piece.animateTo(piece.vec)
+                            piece.moveTo(coroutineScope, piece.vec)
                         }
                     }
 
                     override fun onPieceDrag(
-                        piece: DynamicPiece,
+                        piece: DynamicPiece2,
                         change: PointerInputChange,
                         dragAmount: Offset,
                         scope: PointerInputScope
@@ -178,7 +179,7 @@ fun DynamicChessBoard(
                         val drag = dragAmount
                             .div(with(scope) { size.toPx() })
                             .transformDirection(whiteBottom.value)
-                        piece.dragOffset += drag
+                        piece.snapDrag(drag)
                     }
                 }
             }
@@ -187,16 +188,7 @@ fun DynamicChessBoard(
                 pieces,
                 whiteBottom = whiteBottom.value,
                 dragEvent = dragEvent
-            ) { it, cancelled ->
-                Log.d(TAG, "DynamicChessBoard: animated $it, cancelled = $cancelled")
-                if (!cancelled) {
-
-                }
-                if (it.playSoundAtEnd && it.vec != it.lastVec) {
-                    soundManager?.play(R.raw.move)
-                    it.soundPlayed()
-                }
-            }
+            )
 //        InteractionLayer(pieces = pieces, whiteBottom = whiteBottom, dragEvent = dragEvent)
         }
         StaticChessBoard(fen = fen, modifier = Modifier.fillMaxWidth(0.5f))
@@ -240,10 +232,9 @@ private fun BoxWithConstraintsScope.FENPiecesLayer(fen: String, whiteBottom: Boo
 
 @Composable
 private fun BoxWithConstraintsScope.DynamicPieceLayer(
-    pieces: SnapshotStateList<DynamicPiece>,
+    pieces: SnapshotStateList<DynamicPiece2>,
     whiteBottom: Boolean = true,
     dragEvent: DragEvent,
-    onFinishAnimation: ((DynamicPiece, cancelled: Boolean) -> Unit)? = null
 ) {
     val TAG = "ChessUI"
 
@@ -253,7 +244,6 @@ private fun BoxWithConstraintsScope.DynamicPieceLayer(
             piece,
             size = size,
             whiteBottom,
-            onFinishAnimation = onFinishAnimation,
             dragEvent = dragEvent
         )
     }
@@ -275,16 +265,15 @@ private fun StaticPieceImage(piece: Piece, size: Dp, whiteBottom: Boolean = true
 
 @Composable
 private fun DynamicPieceImage(
-    piece: DynamicPiece,
+    piece: DynamicPiece2,
     size: Dp,
     whiteBottom: Boolean = true,
     dragEvent: DragEvent,
-    onFinishAnimation: ((DynamicPiece, cancelled: Boolean) -> Unit)? = null,
 ) {
-    piece.offset = animatedPieceOffset(piece = piece) {
-        onFinishAnimation?.invoke(piece, it)
-        Log.d(TAG, "DynamicPieceImage: animation complete")
-    }
+//    piece.offset = animatedPieceOffset(piece = piece) {
+//        onFinishAnimation?.invoke(piece, it)
+//        Log.d(TAG, "DynamicPieceImage: animation complete")
+//    }
 
     Image(
         modifier = Modifier
@@ -313,54 +302,54 @@ private fun DynamicPieceImage(
         contentDescription = pieceName[piece.kind]
     )
 }
-
-@Composable
-fun animatedPieceOffset(
-    piece: DynamicPiece,
-    onComplete: ((cancelled: Boolean) -> Unit)? = null
-): Offset {
-
-    val target = piece.vec
-
-    var running by remember {
-        mutableStateOf(false)
-    }
-
-    LaunchedEffect(piece.dragOffset) {
-        Log.d(TAG, "animatedPieceOffset: new drag = ${piece.dragOffset}")
-        piece.animation.snapTo(piece.dragOffset)
-        running = false
-    }
-
-    LaunchedEffect(target, piece.dragging) {
-        if(!piece.animate) return@LaunchedEffect
-        if (piece.dragging) return@LaunchedEffect
-
-
-        val targetOffset = target.toOffset()
-
-        if (running) {
-            onComplete?.invoke(true)
-        }
-
-        running = true
-
-        piece.animate = false
-
-        val res = piece.animation.animateTo(
-            targetValue = targetOffset,
-            animationSpec = tween(
-                250 * cbrt(
-                    (targetOffset - piece.animation.value).getDistance()
-                        .toDouble()
-                ).toInt()
-            ),
-        )
-        onComplete?.invoke(false)
-        running = false
-    }
-    return piece.animation.value
-}
+//
+//@Composable
+//fun animatedPieceOffset(
+//    piece: DynamicPiece,
+//    onComplete: ((cancelled: Boolean) -> Unit)? = null
+//): Offset {
+//
+//    val target = piece.vec
+//
+//    var running by remember {
+//        mutableStateOf(false)
+//    }
+//
+//    LaunchedEffect(piece.dragOffset) {
+//        Log.d(TAG, "animatedPieceOffset: new drag = ${piece.dragOffset}")
+//        piece.animation.snapTo(piece.dragOffset)
+//        running = false
+//    }
+//
+//    LaunchedEffect(target, piece.dragging) {
+//        if(!piece.animate) return@LaunchedEffect
+//        if (piece.dragging) return@LaunchedEffect
+//
+//
+//        val targetOffset = target.toOffset()
+//
+//        if (running) {
+//            onComplete?.invoke(true)
+//        }
+//
+//        running = true
+//
+//        piece.animate = false
+//
+//        val res = piece.animation.animateTo(
+//            targetValue = targetOffset,
+//            animationSpec = tween(
+//                250 * cbrt(
+//                    (targetOffset - piece.animation.value).getDistance()
+//                        .toDouble()
+//                ).toInt()
+//            ),
+//        )
+//        onComplete?.invoke(false)
+//        running = false
+//    }
+//    return piece.animation.value
+//}
 
 @Composable
 private fun ChessBox(
@@ -391,105 +380,105 @@ private fun BoxWithConstraintsScope.ChessBackground(modifier: Modifier = Modifie
         }
     }
 }
-
-@Composable
-fun BoxWithConstraintsScope.InteractionLayer(
-    modifier: Modifier = Modifier,
-    pieces: SnapshotStateList<DynamicPiece>,
-    whiteBottom: MutableState<Boolean>,
-    dragEvent: DragEvent
-) {
-    var draggedPiece: DynamicPiece? = remember { null }
-    val size = maxWidth / 8
-
-    var rect by remember {
-        mutableStateOf(Rect.Zero)
-    }
-
-    Box(
-        Modifier
-            .offset(
-                size * rect.left.transformX(whiteBottom.value, 7f),
-                size * rect.top.transformY(whiteBottom.value, 7f)
-            )
-            .background(Color.Red.copy(0.4f))
-            .size(size, size)
-    )
-
-    var raw by remember { mutableStateOf(Offset.Zero) }
-    Box(
-        Modifier
-            .offset {
-                IntOffset(raw.x.toInt(), raw.y.toInt())
-            }
-            .background(Color.Green)
-            .size(2.dp, 2.dp)
-    )
-    Box(
-        modifier
-            .matchParentSize()
-            .pointerInput(Unit) {
-                detectDragGestures(
-                    onDragStart = { it ->
-                        raw = it
-
-                        rect = Rect(
-                            center = it
-                                .div(size.toPx())
-                                .minus(Offset(0.5f, 0.5f))
-                                .transform(whiteBottom.value, Offset(7f, 7f)),
-                            radius = 0.5f
-                        )
-
-                        Log.d(TAG, "InteractionLayer: onDragStart ${rect.center} $rect")
-                        draggedPiece = pieces.find { rect.contains(it.offset) }
-                        draggedPiece?.startDrag()
-                        Log.d(TAG, "InteractionLayer: $draggedPiece")
-                    },
-                    onDragEnd = {
-                        draggedPiece?.stopDrag()
-                        draggedPiece = null
-                        Log.d(TAG, "InteractionLayer: onDragEnd")
-                    },
-                    onDragCancel = {
-                        draggedPiece?.stopDrag()
-                        draggedPiece = null
-                        Log.d(TAG, "InteractionLayer: onDragCancel")
-                    },
-                    onDrag = { change, dragAmount ->
-                        Log.d(
-                            TAG,
-                            "InteractionLayer: millis ${change.previousPosition} ${change.position} $change."
-                        )
-
-                        change.consumeAllChanges()
-                        val drag = dragAmount
-                            .div(size.toPx())
-                            .transformDirection(whiteBottom.value)
-                        draggedPiece?.dragOffset?.let {
-                            Log.d(TAG, "InteractionLayer: drag by $drag")
-                            Log.d(TAG, "InteractionLayer: bef ${draggedPiece?.offset}")
-                            draggedPiece?.dragOffset = it + drag
-                            Log.d(TAG, "InteractionLayer: aft ${draggedPiece?.offset}")
-                        }
-                    }
-                )
-//                detectTapGestures {
-//                    Log.d(TAG, "InteractionLayer: tapped at $it")
-//                }
-            }
-//            .clickable {
-//                Log.d(TAG, "InteractionLayer: clicked")
+//
+//@Composable
+//fun BoxWithConstraintsScope.InteractionLayer(
+//    modifier: Modifier = Modifier,
+//    pieces: SnapshotStateList<DynamicPiece>,
+//    whiteBottom: MutableState<Boolean>,
+//    dragEvent: DragEvent
+//) {
+//    var draggedPiece: DynamicPiece? = remember { null }
+//    val size = maxWidth / 8
+//
+//    var rect by remember {
+//        mutableStateOf(Rect.Zero)
+//    }
+//
+//    Box(
+//        Modifier
+//            .offset(
+//                size * rect.left.transformX(whiteBottom.value, 7f),
+//                size * rect.top.transformY(whiteBottom.value, 7f)
+//            )
+//            .background(Color.Red.copy(0.4f))
+//            .size(size, size)
+//    )
+//
+//    var raw by remember { mutableStateOf(Offset.Zero) }
+//    Box(
+//        Modifier
+//            .offset {
+//                IntOffset(raw.x.toInt(), raw.y.toInt())
 //            }
-    )
-}
+//            .background(Color.Green)
+//            .size(2.dp, 2.dp)
+//    )
+//    Box(
+//        modifier
+//            .matchParentSize()
+//            .pointerInput(Unit) {
+//                detectDragGestures(
+//                    onDragStart = { it ->
+//                        raw = it
+//
+//                        rect = Rect(
+//                            center = it
+//                                .div(size.toPx())
+//                                .minus(Offset(0.5f, 0.5f))
+//                                .transform(whiteBottom.value, Offset(7f, 7f)),
+//                            radius = 0.5f
+//                        )
+//
+//                        Log.d(TAG, "InteractionLayer: onDragStart ${rect.center} $rect")
+//                        draggedPiece = pieces.find { rect.contains(it.offset) }
+//                        draggedPiece?.startDrag()
+//                        Log.d(TAG, "InteractionLayer: $draggedPiece")
+//                    },
+//                    onDragEnd = {
+//                        draggedPiece?.stopDrag()
+//                        draggedPiece = null
+//                        Log.d(TAG, "InteractionLayer: onDragEnd")
+//                    },
+//                    onDragCancel = {
+//                        draggedPiece?.stopDrag()
+//                        draggedPiece = null
+//                        Log.d(TAG, "InteractionLayer: onDragCancel")
+//                    },
+//                    onDrag = { change, dragAmount ->
+//                        Log.d(
+//                            TAG,
+//                            "InteractionLayer: millis ${change.previousPosition} ${change.position} $change."
+//                        )
+//
+//                        change.consumeAllChanges()
+//                        val drag = dragAmount
+//                            .div(size.toPx())
+//                            .transformDirection(whiteBottom.value)
+//                        draggedPiece?.dragOffset?.let {
+//                            Log.d(TAG, "InteractionLayer: drag by $drag")
+//                            Log.d(TAG, "InteractionLayer: bef ${draggedPiece?.offset}")
+//                            draggedPiece?.dragOffset = it + drag
+//                            Log.d(TAG, "InteractionLayer: aft ${draggedPiece?.offset}")
+//                        }
+//                    }
+//                )
+////                detectTapGestures {
+////                    Log.d(TAG, "InteractionLayer: tapped at $it")
+////                }
+//            }
+////            .clickable {
+////                Log.d(TAG, "InteractionLayer: clicked")
+////            }
+//    )
+//}
 
 open class DragEvent {
-    var draggedPiece: DynamicPiece? = null
-    open fun onPieceDragStart(piece: DynamicPiece, offset: Offset) {}
-    open fun onPieceDragEnd(piece: DynamicPiece) {}
+    var draggedPiece: DynamicPiece2? = null
+    open fun onPieceDragStart(piece: DynamicPiece2, offset: Offset) {}
+    open fun onPieceDragEnd(piece: DynamicPiece2) {}
     open fun onPieceDrag(
-        piece: DynamicPiece,
+        piece: DynamicPiece2,
         change: PointerInputChange,
         dragAmount: Offset,
         scope: PointerInputScope

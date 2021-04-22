@@ -1,5 +1,9 @@
 package com.oapps.knightschess
 
+import android.util.Log
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import org.junit.Test
 
 import org.junit.Assert.*

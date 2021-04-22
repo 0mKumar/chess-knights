@@ -38,6 +38,8 @@ class Move(val chess: Chess, val piece: Piece, val to: IVec, var promotesTo: Cha
         }
     }
 
+    val isCastling get() = isValid() && validationResult.castling != null
+
     override fun toString(): String {
         return "Move(piece=$piece, to=$to, promotesTo=$promotesTo, attackedPiece=$attackedPiece, diff=$diff)"
     }

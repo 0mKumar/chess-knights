@@ -7,7 +7,7 @@ import androidx.compose.ui.geometry.Offset
 import com.oapps.lib.chess.IVec
 import com.oapps.lib.chess.Piece
 
-class DynamicPiece(piece: Piece) {
+class DynamicPieceOld(piece: Piece) {
     var offset by mutableStateOf(piece.vec.toOffset())
 
     val animation = Animatable(offset, Offset.VectorConverter)
