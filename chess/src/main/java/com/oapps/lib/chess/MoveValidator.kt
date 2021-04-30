@@ -4,7 +4,11 @@ import kotlin.math.absoluteValue
 import kotlin.math.sign
 
 sealed class MoveValidator {
-    abstract fun validate(move: Move, checkIllegal: Boolean = true, skipColorCheck: Boolean = false): ValidationResult
+    abstract fun validate(
+        move: Move,
+        checkIllegal: Boolean = true,
+        skipColorCheck: Boolean = false
+    ): ValidationResult
 
     inner class ValidationResult(var valid: Boolean = true) {
         var castlingRookFinalPos: IVec? = null
@@ -14,6 +18,7 @@ sealed class MoveValidator {
         var enPassantCapturedPiece: Piece? = null
         var capture: State.Capture? = null
         var castleRook: Piece? = null
+        var isOpponentInCheck: Boolean = false
         override fun toString(): String {
             return "ValidationResult(valid=$valid, castling=$castling, promotion=$promotion, createdEnPassantTarget=$createdEnPassantTarget, enPassantCapturedPiece=$enPassantCapturedPiece, capture=$capture, castleRook=$castleRook)"
         }
@@ -33,12 +38,12 @@ sealed class MoveValidator {
     fun moveFromSan(chess: Chess, san: String, color: Boolean = true): Move? {
         println("san = [${san}], color = [${color}]")
         var data = san.trim()
-        if(data.startsWith("O-O")) {
+        if (data.startsWith("O-O")) {
             val side = if (data == "O-O") 6 else 2
             val rank = if (color) 0 else 7
             return Move(chess, Piece(IVec(4, rank), 'K'.ofColor(color)), IVec(side, rank))
         }
-        if(data.endsWith('+') || data.endsWith('#')) data = data.dropLast(1)
+        if (data.endsWith('+') || data.endsWith('#')) data = data.dropLast(1)
         var promotion: Char? = null
         if (data.contains('=')) {
             if (data.length < 2) return null
@@ -97,29 +102,26 @@ sealed class MoveValidator {
         // TODO: 4/16/21 verify if this is latest move or throw exception
         if (!move.isValid()) return "?"
         val ambiguity = move.chess.pieces.values.toMutableList().filter {
-            it.kind == move.piece.kind && StandardValidator.canLegallyMove(move.chess, it, move.to)
-        }.also {
-            println("Ambiguous pieces = $it}")
-        }.fold(false to false) { acc, piece ->
-            (acc.first || piece.vec.x != move.piece.vec.x) to (acc.second || piece.vec.y != move.piece.vec.y)
+            it != move.piece && it.kind == move.piece.kind && StandardValidator.canLegallyMove(move.chess, it, move.to)
         }
-        println(ambiguity)
         move.validationResult.castling?.let {
-            if(it.isKing) return "O-O"
-            else if(it.isQueen) return "O-O-O"
+            if (it.isKing) return "O-O"
+            else if (it.isQueen) return "O-O-O"
         }
         val builder = StringBuilder()
         if (!move.piece.isPawn) {
             builder.append(move.piece.kind.asWhite)
         }
-        builder.append(
-            when (ambiguity) {
-                false to false -> ""
-                true to false -> move.piece.vec.file
-                false to true -> move.piece.vec.rank
-                else -> move.piece.vec.loc
-            }
-        )
+
+        if (ambiguity.isNotEmpty()) {
+            builder.append(
+                when {
+                    ambiguity.none { it.vec.x == move.piece.vec.x } -> move.piece.vec.file
+                    ambiguity.none { it.vec.y == move.piece.vec.y } -> move.piece.vec.rank
+                    else -> move.piece.vec.loc
+                }
+            )
+        }
 
         if (move.validationResult.enPassantCapturedPiece != null || move.attackedPiece != null) {
             if (move.piece.isPawn && builder.isEmpty()) builder.append(move.piece.vec.file)
@@ -127,19 +129,31 @@ sealed class MoveValidator {
         }
         builder.append(move.to.loc)
         if (move.piece.isPawn && move.to.y.let { it == 0 || it == 7 }) {
+            builder.append('=')
             builder.append((move.promotesTo ?: 'Q').asWhite)
+        }
+
+        if (move.validationResult.isOpponentInCheck) {
+            builder.append('+')
         }
 
         return builder.toString()
     }
 
     object StandardValidator : MoveValidator() {
-        override fun validate(move: Move, checkIllegal: Boolean, skipColorCheck: Boolean): ValidationResult {
+        override fun validate(
+            move: Move,
+            checkIllegal: Boolean,
+            skipColorCheck: Boolean
+        ): ValidationResult {
             println("StandardValidator.validate")
             println("move = [${move}], checkIllegal = [${checkIllegal}], skipColorCheck = [${skipColorCheck}]")
             val res = ValidationResult()
             res.capture = move.chess.state.capture()
-            if (preCheckFails(move, skipColorCheck) || validatePieceSpecificFails(move, res, checkIllegal)) {
+            if (
+                preCheckFails(move, skipColorCheck)
+                || validatePieceSpecificFails(move, res, checkIllegal)
+            ) {
                 return res.apply { valid = false }
             }
 
@@ -151,7 +165,7 @@ sealed class MoveValidator {
             res: ValidationResult,
             checkIllegal: Boolean
         ): Boolean {
-            val incorrect =  when (move.piece.kind.asWhite) {
+            val incorrect = when (move.piece.kind.asWhite) {
                 'R' -> validateRookFails(move, res)
                 'B' -> validateBishopFails(move, res)
                 'K' -> validateKingFails(move, res, checkIllegal)
@@ -160,15 +174,16 @@ sealed class MoveValidator {
                 'N' -> validateKnightFails(move, res)
                 else -> return true
             }
-            if(incorrect) return true
+            if (incorrect) return true
 
-            if(!checkIllegal) return false
-            if(move.piece.isKing) return false
+            if (!checkIllegal) return false
+//            if(move.piece.isKing) return false
             val fakeMove = Move(move.chess, move.piece, move.to, move.promotesTo, false)
             move.chess.makeMove(fakeMove, validate = false, commit = false)
             println("checking if check")
             return isCheck(move.chess, move.color)
                 .also {
+                    res.isOpponentInCheck = isCheck(move.chess, !move.color)
                     println("reverting... $fakeMove")
                     move.chess.revertMove(
                         fakeMove,
@@ -186,7 +201,7 @@ sealed class MoveValidator {
 
         private fun validateBishopFails(move: Move, res: ValidationResult): Boolean {
             println("StandardValidator.validateBishopFails $move")
-            if (move.diff.absolute.run{x != y}) return true
+            if (move.diff.absolute.run { x != y }) return true
             println("StandardValidator.validateBishopFails 1")
             if (hasPieceInLine(move.piece.vec, move.diff.sign, move.to, move.chess)) return true
             println("StandardValidator.validateBishopFails 2")
@@ -194,7 +209,7 @@ sealed class MoveValidator {
         }
 
         private fun validateQueenFails(move: Move, res: ValidationResult): Boolean {
-            if (move.diff.x != 0 && move.diff.y != 0 && move.diff.absolute.run{x != y}) return true
+            if (move.diff.x != 0 && move.diff.y != 0 && move.diff.absolute.run { x != y }) return true
             if (hasPieceInLine(move.piece.vec, move.diff.sign, move.to, move.chess)) return true
             return false
         }
@@ -204,7 +219,7 @@ sealed class MoveValidator {
             res: ValidationResult,
             checkIllegal: Boolean
         ): Boolean {
-            if (move.piece.vec.x == 4 && move.diff.y == 0 && move.diff.x.absoluteValue == 2 && move.piece.vec.y == if(move.color) 0 else 7) {
+            if (move.piece.vec.x == 4 && move.diff.y == 0 && move.diff.x.absoluteValue == 2 && move.piece.vec.y == if (move.color) 0 else 7) {
                 println("checking castle")
                 val castlingType = (if (move.diff.x > 0) 'K' else 'Q').ofColor(move.color)
                 if (move.chess.state.canCastle(castlingType)) {
@@ -271,6 +286,7 @@ sealed class MoveValidator {
                 if (opp.kind.color == color) continue
                 val move = Move(chess, opp, king.vec, checkIllegal = false)
                 if (validate(move, checkIllegal = false, skipColorCheck = true).valid) {
+                    println("check by ${move.piece}")
                     return true
                 }
             }
@@ -309,7 +325,7 @@ sealed class MoveValidator {
             } else {
                 if (move.diff.x == 0) return true
             }
-            if(move.to.y == 0 || move.to.y == 7){
+            if (move.to.y == 0 || move.to.y == 7) {
                 res.promotion = move.promotesTo
             }
             return false
@@ -328,7 +344,11 @@ sealed class MoveValidator {
     }
 
     object NoCheck : MoveValidator() {
-        override fun validate(move: Move, checkIllegal: Boolean, skipColorCheck: Boolean): ValidationResult {
+        override fun validate(
+            move: Move,
+            checkIllegal: Boolean,
+            skipColorCheck: Boolean
+        ): ValidationResult {
             return ValidationResult(true).apply {
                 capture = move.chess.state.capture()
             }

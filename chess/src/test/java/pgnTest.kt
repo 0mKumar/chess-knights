@@ -1,4 +1,5 @@
 import com.oapps.lib.chess.Chess
+import com.oapps.lib.chess.Move
 import com.oapps.lib.chess.MoveValidator
 import com.oapps.lib.chess.PGNParser
 import junit.framework.Assert.assertEquals
@@ -114,5 +115,35 @@ class PGNTest{
         val san = MoveValidator.StandardValidator.sanForMove(move!!)
         chess.makeMove(move)
         assertEquals(originalSan, san)
+    }
+
+    @Test
+    fun sanAmbiguityTest(){
+        val fen = "1R4QQ/R1R4Q/8/6pP/5P1P/8/NK1k4/1N1N4 w - g6 0 1"
+        val chess = Chess(fen)
+        assertEquals(fen, chess.generateFullFen())
+        val moves = listOf(
+            "b8b7" to "Rbb7+",
+            "a7b7" to "Rab7+",
+            "c7b7" to "Rcb7+",
+
+            "f4g5" to "fxg5+",
+            "h4g5" to "hxg5+",
+            "h5g6" to "hxg6+",
+
+            "a2c3" to "Nac3+",
+            "b1c3" to "Nbc3",
+            "d1c3" to "Ndc3+",
+
+            "g8g7" to "Qgg7+",
+            "h7g7" to "Q7g7+",
+            "h8g7" to "Qh8g7+",
+            )
+        for((m, s) in moves){
+            println("NEW MOVE ========= $m $s")
+            val move = Move(chess, m)
+            val san = MoveValidator.StandardValidator.sanForMove(move)
+            assertEquals(s, san)
+        }
     }
 }

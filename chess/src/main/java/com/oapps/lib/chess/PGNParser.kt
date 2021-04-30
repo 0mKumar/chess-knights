@@ -42,7 +42,7 @@ class PGNParser {
             val move = chess.validator.moveFromSan(chess, it, color.also { color = !color })
             if(move == null){
                 println("Can't parse legal move for $it at fen ${chess.generateFullFen()}")
-                assert(false)
+                assert(false) { "move is null" }
                 break
             }else if(move.isValid()){
                 val san = MoveValidator.StandardValidator.sanForMove(move)
@@ -50,11 +50,11 @@ class PGNParser {
                 chess.makeMove(move)
                 chess.printAsciiBoard()
                 println(chess.generateFullFen())
-                assert(san == it)
+                assert(san == it){ "expected = $it, actual = $san" }
                 moves.add(move)
             }else{
                 println("Move $move is invalid")
-                assert(false)
+                assert(false) { "move is invalid" }
                 break
             }
         }
