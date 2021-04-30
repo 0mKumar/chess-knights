@@ -16,6 +16,7 @@ fun main(){
                         chess.makeMove(move)
                         if(move.isValid()) {
                             chess.printAsciiBoard()
+                            println(chess.generateFullFen())
                         }else{
                             println("Invalid move")
                         }
@@ -27,6 +28,7 @@ fun main(){
                         }else {
                             chess.makeMove(move)
                             chess.printAsciiBoard()
+                            println(chess.generateFullFen())
                         }
                     }
                     line.startsWith("f ") -> {

@@ -47,6 +47,9 @@
         <entry key="../../../../layout/compose-model-1618509789724.xml" value="0.1" />
         <entry key="../../../../layout/compose-model-1618618370375.xml" value="0.67" />
         <entry key="../../../../layout/compose-model-1618750632829.xml" value="0.5" />
+        <entry key="../../../../layout/compose-model-1619531176608.xml" value="0.1" />
+        <entry key="../../../../layout/compose-model-1619698090457.xml" value="0.1" />
+        <entry key="../../../../layout/compose-model-1619763462508.xml" value="0.1" />
         <entry key="../../../../layout/custom_preview.xml" value="0.36018518518518516" />
         <entry key="app/src/main/res/drawable/google.xml" value="0.1" />
         <entry key="app/src/main/res/font/source_sans_pro_bold_italic.xml" value="0.2777777777777778" />
@@ -55,11 +58,23 @@
         <entry key="app/src/main/res/font/ubuntu_light.xml" value="0.3509259259259259" />
         <entry key="app2/src/main/res/drawable/alpha_bb.xml" value="0.3671794871794872" />
         <entry key="app2/src/main/res/drawable/alpha_bq.xml" value="0.3671794871794872" />
+        <entry key="app2/src/main/res/drawable/cardinal_wk.xml" value="0.3671794871794872" />
         <entry key="app2/src/main/res/drawable/chessnut_bn.xml" value="0.3671794871794872" />
         <entry key="app2/src/main/res/drawable/fresca_wr.xml" value="0.3671794871794872" />
+        <entry key="app2/src/main/res/drawable/horsey_bk.xml" value="0.3671794871794872" />
         <entry key="app2/src/main/res/drawable/icpieces_wp.xml" value="0.3671794871794872" />
+        <entry key="app2/src/main/res/drawable/kosal_bk.xml" value="0.3671794871794872" />
+        <entry key="app2/src/main/res/drawable/kosal_bn.xml" value="0.3671794871794872" />
+        <entry key="app2/src/main/res/drawable/kosal_bp.xml" value="0.3671794871794872" />
+        <entry key="app2/src/main/res/drawable/kosal_wb.xml" value="0.3671794871794872" />
+        <entry key="app2/src/main/res/drawable/kosal_wk.xml" value="0.3671794871794872" />
+        <entry key="app2/src/main/res/drawable/kosal_wn.xml" value="0.3671794871794872" />
+        <entry key="app2/src/main/res/drawable/kosal_wp.xml" value="0.3671794871794872" />
+        <entry key="app2/src/main/res/drawable/kosal_wq.xml" value="0.3671794871794872" />
+        <entry key="app2/src/main/res/drawable/kosal_wr.xml" value="0.3671794871794872" />
         <entry key="app2/src/main/res/drawable/libra_bp.xml" value="0.3671794871794872" />
         <entry key="app2/src/main/res/drawable/mono_p_.xml" value="0.3671794871794872" />
+        <entry key="app2/src/main/res/drawable/mono_r_.xml" value="0.3671794871794872" />
         <entry key="app2/src/main/res/drawable/riohacha_bp.xml" value="0.3671794871794872" />
         <entry key="app2/src/main/res/drawable/staunty_bk.xml" value="0.3671794871794872" />
         <entry key="app2/src/main/res/drawable/tatiana_wr.xml" value="0.3671794871794872" />

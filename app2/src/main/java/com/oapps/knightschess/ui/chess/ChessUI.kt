@@ -1,22 +1,17 @@
 package com.oapps.knightschess.ui.chess
 
 import android.util.Log
-import androidx.compose.animation.Crossfade
-import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Surface
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.Saver
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerInputChange
@@ -27,17 +22,11 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import com.google.accompanist.coil.CoilImage
 import com.oapps.audio.SoundManager
 import com.oapps.knightschess.R
+import com.oapps.knightschess.ui.chess.theme.Image
 import com.oapps.lib.chess.*
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.suspendCancellableCoroutine
-import java.lang.Math.cbrt
-import java.lang.Math.random
 import kotlin.math.roundToInt
 
 private val TAG = "ChessUI"
@@ -96,12 +85,14 @@ fun StaticChessBoard(modifier: Modifier = Modifier, fen: String, whiteBottom: Bo
 @Composable
 fun DynamicChessBoard(
     modifier: Modifier = Modifier,
-    chess: Chess = remember { Chess() },
+    chess: Chess = remember { Chess(options = Options(defaultPromotion = null)) },
     whiteBottom: MutableState<Boolean> = remember {
         mutableStateOf(true)
     },
+    images: Image = Image.Companion,
     soundManager: SoundManager? = null
 ) {
+    // TODO: 4/26/21 account for pre moves
     val pieces = remember {
         chess.pieces
             .values
@@ -127,6 +118,19 @@ fun DynamicChessBoard(
             val size = maxWidth / 8
             val coroutineScope = rememberCoroutineScope()
 
+            var promotionRequest by remember {
+                mutableStateOf<PromotionRequest>(PromotionRequest.None)
+            }
+
+            fun commitMove(move: Move){
+                chess.makeMove(move)
+                fen = chess.generateFen()
+                val whiteCheck = MoveValidator.StandardValidator.isCheck(chess, true)
+                Log.d(TAG, "commitMove: white check = $whiteCheck")
+                val blackCheck = MoveValidator.StandardValidator.isCheck(chess, false)
+                Log.d(TAG, "commitMove: black check = $blackCheck")
+            }
+
             val dragEvent = remember {
                 object : DragEvent() {
                     override fun onPieceDragStart(piece: DynamicPiece2, offset: Offset) {
@@ -143,8 +147,16 @@ fun DynamicChessBoard(
                         )
                         val move = Move(chess, Piece(piece.vec, piece.kind), droppedTo)
                         if (move.isValid()) {
-                            chess.makeMove(move)
-                            fen = chess.generateFen()
+                            if(move.isPromotion && move.promotesTo == null){
+                                promotionRequest = PromotionRequest.Request(move){
+                                    piece.kind = it
+                                    move.promotesTo = it
+                                    commitMove(move)
+                                    promotionRequest = PromotionRequest.None
+                                }
+                            }else {
+                                commitMove(move)
+                            }
                             move.isAttack { attackedPiece ->
                                 pieces.find {
                                     it.vec == attackedPiece.vec && it.kind == attackedPiece.kind
@@ -153,7 +165,7 @@ fun DynamicChessBoard(
                                 }
 
                             }
-                            piece.moveTo(coroutineScope, move.to){
+                            piece.moveTo(coroutineScope, move.to) {
                                 soundManager?.play(R.raw.move)
                             }
                             move.isCastling { rook, to, _ ->
@@ -161,7 +173,8 @@ fun DynamicChessBoard(
                                     ?.moveTo(coroutineScope, to)
                             }
                             move.isPromotion {
-                                piece.kind = it ?: 'Q'.ofColor(piece.kind.color)
+                                if(it != null)
+                                    piece.kind = it
                             }
                         } else {
                             piece.moveTo(coroutineScope, piece.vec)
@@ -174,6 +187,9 @@ fun DynamicChessBoard(
                         dragAmount: Offset,
                         scope: PointerInputScope
                     ) {
+                        if(promotionRequest is PromotionRequest.Request){
+                            return
+                        }
                         Log.d(TAG, "onPieceDrag: ")
                         change.consumeAllChanges()
                         val drag = dragAmount
@@ -187,14 +203,77 @@ fun DynamicChessBoard(
             DynamicPieceLayer(
                 pieces,
                 whiteBottom = whiteBottom.value,
-                dragEvent = dragEvent
+                dragEvent = dragEvent,
+                image = images
             )
+
+
+            promotionRequest.let { request ->
+                if(request is PromotionRequest.Request) {
+                    RequestPromotionPiece(
+                        color = request.move.color,
+                        vecTo = request.move.to,
+                        onPieceTypeSelected = {
+                            // TODO: 4/26/21 request state and account for pre move
+                            request.onComplete(it)
+                        },
+                        image = images,
+                        whiteBottom = whiteBottom
+                    )
+                }
+            }
+
 //        InteractionLayer(pieces = pieces, whiteBottom = whiteBottom, dragEvent = dragEvent)
         }
-        StaticChessBoard(fen = fen, modifier = Modifier.fillMaxWidth(0.5f))
-
+        StaticChessBoard(fen = fen, modifier = Modifier.fillMaxWidth(0.24f))
     }
 
+}
+
+
+@Composable
+fun BoxWithConstraintsScope.RequestPromotionPiece(
+    color: Boolean,
+    vecTo: IVec,
+    onPieceTypeSelected: (Char) -> Unit,
+    image: Image,
+    whiteBottom: MutableState<Boolean>
+) {
+    val size = maxWidth / 8
+    val shape = remember { RoundedCornerShape(4.dp) }
+    Surface(
+        color = Color.White, elevation = 4.dp, shape = shape,
+        modifier = Modifier.offset(
+            x = (size * vecTo.x).transformX(whiteBottom.value, maxWidth * 7 / 8),
+            y = if (color.isBlack xor whiteBottom.value.not())
+                (size * 4).transformY(whiteBottom.value, maxHeight)
+            else 0.dp
+        )
+    ) {
+        Column {
+            "QRBN".let { if (color.isBlack xor whiteBottom.value) it else it.reversed() }.forEach {
+                PromotionPieceButton(size, it.ofColor(color.isWhite), image, onPieceTypeSelected)
+            }
+        }
+    }
+}
+
+@Composable
+private fun PromotionPieceButton(
+    size: Dp,
+    pieceType: Char,
+    image: Image,
+    onClick: (Char) -> Unit
+) {
+    Image(
+        painterResource(id = image[pieceType]),
+        "",
+        Modifier
+            .size(size)
+            .clickable {
+                onClick(pieceType)
+            }
+    )
 }
 
 private val painterResourceForPiece = mapOf(
@@ -235,6 +314,7 @@ private fun BoxWithConstraintsScope.DynamicPieceLayer(
     pieces: SnapshotStateList<DynamicPiece2>,
     whiteBottom: Boolean = true,
     dragEvent: DragEvent,
+    image: Image,
 ) {
     val TAG = "ChessUI"
 
@@ -244,7 +324,8 @@ private fun BoxWithConstraintsScope.DynamicPieceLayer(
             piece,
             size = size,
             whiteBottom,
-            dragEvent = dragEvent
+            dragEvent = dragEvent,
+            image = image
         )
     }
 }
@@ -269,6 +350,7 @@ private fun DynamicPieceImage(
     size: Dp,
     whiteBottom: Boolean = true,
     dragEvent: DragEvent,
+    image: Image,
 ) {
 //    piece.offset = animatedPieceOffset(piece = piece) {
 //        onFinishAnimation?.invoke(piece, it)
@@ -298,7 +380,7 @@ private fun DynamicPieceImage(
                     }
                 )
             },
-        painter = painterResource(id = painterResourceForPiece[piece.kind] ?: R.drawable.bn),
+        painter = painterResource(id = image[piece.kind]),
         contentDescription = pieceName[piece.kind]
     )
 }
@@ -472,21 +554,3 @@ private fun BoxWithConstraintsScope.ChessBackground(modifier: Modifier = Modifie
 ////            }
 //    )
 //}
-
-open class DragEvent {
-    var draggedPiece: DynamicPiece2? = null
-    open fun onPieceDragStart(piece: DynamicPiece2, offset: Offset) {}
-    open fun onPieceDragEnd(piece: DynamicPiece2) {}
-    open fun onPieceDrag(
-        piece: DynamicPiece2,
-        change: PointerInputChange,
-        dragAmount: Offset,
-        scope: PointerInputScope
-    ) {
-    }
-
-    open fun onDragStart(offset: Offset) {}
-    open fun onDragEnd() {}
-    open fun onDrag(change: PointerInputChange, dragAmount: Offset) {}
-}
-

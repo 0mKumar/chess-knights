@@ -17,7 +17,7 @@ class Move(val chess: Chess, val piece: Piece, val to: IVec, var promotesTo: Cha
 
     fun isValid() = validationResult.valid
 
-    fun isCastling(block: (rook: Piece, to: IVec, castleType: Char) -> Unit){
+    fun isCastling(block: (rook: Piece, rookFinalPosition: IVec, castleType: Char) -> Unit){
         if(!isValid()) return
         val castling = validationResult.castling?: return
         val castleRook = validationResult.castleRook?: return
@@ -31,16 +31,22 @@ class Move(val chess: Chess, val piece: Piece, val to: IVec, var promotesTo: Cha
         block(Piece(to, attackedPiece))
     }
 
+    fun isEnpassant(block: (attackedPawn: Piece) -> Unit){
+        if(!isValid()) return
+        validationResult.enPassantCapturedPiece?.let(block)
+    }
+
     fun isPromotion(block: (promotesTo: Char?) -> Unit){
         if(!isValid()) return
-        if(piece.isPawn && to.y == 0 || to.y == 7){
-            block(validationResult.promotion)
+        if(piece.isPawn && (to.y == 0 || to.y == 7)){
+            block(promotesTo)
         }
     }
 
     val isCastling get() = isValid() && validationResult.castling != null
+    val isPromotion get() = isValid() && (piece.isPawn && (to.y == 0 || to.y == 7))
 
     override fun toString(): String {
-        return "Move(piece=$piece, to=$to, promotesTo=$promotesTo, attackedPiece=$attackedPiece, diff=$diff)"
+        return "M($piece, t=$to, p=$promotesTo, a=$attackedPiece, d=$diff)"
     }
 }

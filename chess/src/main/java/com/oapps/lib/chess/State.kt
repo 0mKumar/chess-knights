@@ -1,9 +1,6 @@
 package com.oapps.lib.chess
 
 class State(fen: String) {
-    init {
-        reset(fen)
-    }
 
     inner class Capture(state: State){
         val castling = state.castling
@@ -26,6 +23,10 @@ class State(fen: String) {
     var castling = "KkQq"
     var enPassantTarget = IVec.None
     var activeColor = true
+
+    init {
+        reset(fen)
+    }
 
     private fun resetCastling(whoCanCastle: String = "KQkq") {
         castling = whoCanCastle
@@ -64,6 +65,17 @@ class State(fen: String) {
         move.validationResult.castling?.let {
             removeCastle(it)
         }
+
+        if(move.piece.isKing){
+            removeCastle('k'.ofColor(move.color))
+            removeCastle('q'.ofColor(move.color))
+        }
+
+        if(move.piece.isRook){
+            if(move.piece.vec.x == 0) removeCastle('q'.ofColor(move.color))
+            else if(move.piece.vec.x == 7) removeCastle('k'.ofColor(move.color))
+        }
+
         enPassantTarget = IVec.None
         move.validationResult.createdEnPassantTarget?.let {
             enPassantTarget = it
@@ -92,13 +104,14 @@ class State(fen: String) {
 
     fun reset(fen: String) {
         val data = fen.substringAfter(' ').split(' ')
+        println("setting state = $data")
         activeColor = data[0][0] == 'w'
         resetCastling(data[1])
         enPassantTarget = when(data[2]){
             "-" -> IVec.None
             else -> IVec(data[2])
         }
-        halfMoveCount = data[3].toInt()
+        halfMoveClock = data[3].toInt()
         val fullMoveCount = data[4].toInt()
         halfMoveCount = fullMoveCount * 2 + if (activeColor.isBlack) 1 else 0
     }

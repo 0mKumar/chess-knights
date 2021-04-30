@@ -11,11 +11,14 @@ class PieceMap: TreeMap<IVec, Piece>(){
     fun move(move: Move, validate: Boolean = true){
         move(move.piece, move.to)
         if(validate && move.isValid()){
-            move.validationResult.castling?.let {
-                move(move.validationResult.castleRook!!, move.piece.vec + move.diff.sign)
+            move.isCastling{ rook, rookFinalPos, _ ->
+                move(rook, rookFinalPos)
             }
-            move.validationResult.promotion?.let {
-                put(Piece(move.to, it))
+            move.isPromotion {
+                put(Piece(move.to, it?:move.chess.options.defaultPromotion?:'Q'.ofColor(move.color)))
+            }
+            move.isEnpassant {
+                remove(it)
             }
         }
     }
@@ -26,13 +29,13 @@ class PieceMap: TreeMap<IVec, Piece>(){
             put(Piece(move.to, move.attackedPiece))
         }
         if(validate && move.isValid()) {
-            move.validationResult.castling?.let {
+            move.isCastling{ rook, _, _ ->
                 move(
-                    move.validationResult.castleRook!!.copy(vec = move.piece.vec + move.diff.sign),
-                    move.validationResult.castleRook!!.vec
+                    rook.copy(vec = move.piece.vec + move.diff.sign),
+                    rook.vec
                 )
             }
-            move.validationResult.promotion?.let {
+            move.isPromotion{
                 put(Piece(move.piece.vec, move.piece.kind))
             }
         }
