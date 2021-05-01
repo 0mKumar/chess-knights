@@ -136,6 +136,7 @@ fun DynamicChessBoard(
                     override fun onPieceDragStart(piece: DynamicPiece2, offset: Offset) {
                         Log.d(TAG, "onPieceDragStart: ")
                         draggedPiece = piece
+//                        soundManager?.play(R.raw.select)
                     }
 
                     override fun onPieceDragEnd(piece: DynamicPiece2) {
@@ -166,7 +167,20 @@ fun DynamicChessBoard(
 
                             }
                             piece.moveTo(coroutineScope, move.to) {
-                                soundManager?.play(R.raw.move)
+                                if(move.isAttack){
+                                    soundManager?.play(R.raw.capture)
+                                }
+                                if(move.validationResult.isOpponentInCheck){
+                                    soundManager?.play(R.raw.check)
+                                }
+                                when {
+                                    move.isCastling -> {
+                                        soundManager?.play(R.raw.castles)
+                                    }
+                                    else -> {
+                                        soundManager?.play(R.raw.move)
+                                    }
+                                }
                             }
                             move.isCastling { rook, to, _ ->
                                 pieces.find { it.vec == rook.vec && it.kind == rook.kind }
@@ -178,6 +192,11 @@ fun DynamicChessBoard(
                             }
                         } else {
                             piece.moveTo(coroutineScope, piece.vec)
+//                            if(droppedTo.isInvalid){
+//                                soundManager?.play(R.raw.out_of_bound)
+//                            }else{
+                                soundManager?.play(R.raw.out_of_bound)
+//                            }
                         }
                     }
 

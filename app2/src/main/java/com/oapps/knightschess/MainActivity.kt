@@ -34,6 +34,12 @@ class MainActivity : ComponentActivity() {
         mSoundManager.value = SoundManager(this, maxSimultaneousStreams)
         mSoundManager.value?.start()
         mSoundManager.value?.load(R.raw.move)
+        mSoundManager.value?.load(R.raw.error)
+        mSoundManager.value?.load(R.raw.out_of_bound)
+        mSoundManager.value?.load(R.raw.select)
+        mSoundManager.value?.load(R.raw.castles)
+        mSoundManager.value?.load(R.raw.check)
+        mSoundManager.value?.load(R.raw.capture)
     }
 
     override fun onPause() {

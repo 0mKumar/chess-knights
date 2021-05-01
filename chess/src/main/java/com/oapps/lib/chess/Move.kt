@@ -45,6 +45,7 @@ class Move(val chess: Chess, val piece: Piece, val to: IVec, var promotesTo: Cha
 
     val isCastling get() = isValid() && validationResult.castling != null
     val isPromotion get() = isValid() && (piece.isPawn && (to.y == 0 || to.y == 7))
+    val isAttack get() = isValid() && (attackedPiece != null || validationResult.enPassantCapturedPiece != null)
 
     override fun toString(): String {
         return "M($piece, t=$to, p=$promotesTo, a=$attackedPiece, d=$diff)"
