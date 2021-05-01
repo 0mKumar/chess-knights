@@ -9,11 +9,17 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.geometry.Offset
 import com.oapps.lib.chess.IVec
 import com.oapps.lib.chess.Piece
+import com.oapps.lib.chess.loc
 import kotlinx.coroutines.*
 import java.lang.Math.cbrt
 import kotlin.coroutines.suspendCoroutine
 
 class DynamicPiece2(piece: Piece) {
+
+    override fun toString() = "DPiece($kind${vec.loc})"
+
+    fun asPiece() = Piece(vec, kind)
+
     private val TAG = "DynamicPiece2"
 
     var vec by mutableStateOf(piece.vec)

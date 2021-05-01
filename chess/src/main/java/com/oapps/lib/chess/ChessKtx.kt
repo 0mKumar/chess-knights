@@ -1,5 +1,6 @@
 package com.oapps.lib.chess
 
+import javax.print.attribute.standard.MediaSize
 import kotlin.math.absoluteValue
 import kotlin.math.sign
 
@@ -76,3 +77,4 @@ fun IVec.inDirection(dir: IVec, until: IVec? = null) = object : Iterator<IVec> {
     override fun next() = next.also { next += dir }
 }.asSequence()
 
+infix fun Int.x(other: Int) = IVec(this, other)

@@ -15,8 +15,8 @@ class Chess(
     }
 
     fun makeMove(move: Move, validate: Boolean = true, commit: Boolean = validate): Move {
-        if (validate){
-            if(!move.isValid()) return move
+        if (validate) {
+            if (!move.isValid()) return move
         }
         _pieces.move(move, validate)
         if (commit) {
@@ -27,14 +27,39 @@ class Chess(
     }
 
     fun revertMove(move: Move, validate: Boolean = true, rollBack: Boolean = validate): Boolean {
-        if (validate){
-            if(!move.isValid()) return false
+        if (validate) {
+            if (!move.isValid()) return false
         }
         _pieces.unMove(move, validate)
         if (rollBack) {
             state.rollBack(move)
         }
         return true
+    }
+
+    enum class GameStatus {
+        CHECK_MATE,
+        STALE_MATE,
+        NORMAL
+    }
+
+    fun gameStatus(lastMove: Move? = null): GameStatus {
+        val hasNoLegalMove = pieces.values.toMutableList().all {
+            it.kind.color != state.activeColor || MoveValidator.StandardValidator.getPossibleMoves(
+                chess = this,
+                piece = it,
+                earlyReturnOneOrNone = true
+            ).isEmpty()
+        }
+        if (hasNoLegalMove) {
+            val isCheck = lastMove?.validationResult?.isOpponentInCheck
+                ?: MoveValidator.StandardValidator.isCheck(this, state.activeColor)
+            if (isCheck) {
+                return GameStatus.CHECK_MATE
+            }
+            return GameStatus.STALE_MATE
+        }
+        return GameStatus.NORMAL
     }
 
     fun generateFen() = _pieces.generateFen()
@@ -59,6 +84,8 @@ class Chess(
         out.append("\n    ").append(('a'..'h').joinToString("  "))
         println(out.toString())
     }
+
+    operator fun get(vec: IVec): Piece? = pieces[vec]
 
     companion object {
         const val startPos = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"

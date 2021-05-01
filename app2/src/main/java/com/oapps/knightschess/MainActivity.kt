@@ -37,7 +37,6 @@ class MainActivity : ComponentActivity() {
         mSoundManager.value?.load(R.raw.error)
         mSoundManager.value?.load(R.raw.out_of_bound)
         mSoundManager.value?.load(R.raw.select)
-        mSoundManager.value?.load(R.raw.castles)
         mSoundManager.value?.load(R.raw.check)
         mSoundManager.value?.load(R.raw.capture)
     }

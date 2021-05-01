@@ -5,6 +5,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.*
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Surface
@@ -23,6 +24,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.round
 import com.oapps.audio.SoundManager
 import com.oapps.knightschess.R
 import com.oapps.knightschess.ui.chess.theme.Image
@@ -89,7 +91,7 @@ fun DynamicChessBoard(
     whiteBottom: MutableState<Boolean> = remember {
         mutableStateOf(true)
     },
-    images: Image = Image.Companion,
+    images: Image = Image.Staunty,
     soundManager: SoundManager? = null
 ) {
     // TODO: 4/26/21 account for pre moves
@@ -122,7 +124,7 @@ fun DynamicChessBoard(
                 mutableStateOf<PromotionRequest>(PromotionRequest.None)
             }
 
-            fun commitMove(move: Move){
+            fun commitMove(move: Move) {
                 chess.makeMove(move)
                 fen = chess.generateFen()
                 val whiteCheck = MoveValidator.StandardValidator.isCheck(chess, true)
@@ -131,8 +133,43 @@ fun DynamicChessBoard(
                 Log.d(TAG, "commitMove: black check = $blackCheck")
             }
 
-            val dragEvent = remember {
-                object : DragEvent() {
+            val userInputEvents = remember {
+                object : ChessUserInputEvents() {
+
+                    override fun squareTapped(square: IVec) {
+                        selectedPiece?.let {
+                            tryPieceMoveTo(it, square)
+                        }
+                        selectedPiece = null
+                    }
+
+                    override fun onPieceClicked(piece: DynamicPiece2) {
+                        Log.d(TAG, "onPieceClicked: doing...")
+                        when (selectedPiece) {
+                            piece -> {
+                                // simply unselect piece
+                                selectedPiece = null
+                            }
+                            null -> {
+                                if(piece.kind.color == chess.state.activeColor) {
+                                    selectedPiece = piece
+                                    val moves = MoveValidator.StandardValidator.getPossibleMoves(
+                                        chess,
+                                        piece.asPiece()
+                                    )
+                                    Log.d(
+                                        TAG,
+                                        "onPieceClicked: possible moves for $piece = ${moves.size} ${moves.map { it.to.loc }}"
+                                    )
+                                }
+                            }
+                            else -> {
+                                selectedPiece?.let { tryPieceMoveTo(it, piece.vec) }
+                                selectedPiece = null
+                            }
+                        }
+                    }
+
                     override fun onPieceDragStart(piece: DynamicPiece2, offset: Offset) {
                         Log.d(TAG, "onPieceDragStart: ")
                         draggedPiece = piece
@@ -146,16 +183,23 @@ fun DynamicChessBoard(
                             piece.offset.x.roundToInt(),
                             piece.offset.y.roundToInt()
                         )
+                        tryPieceMoveTo(piece, droppedTo)
+                    }
+
+                    private fun tryPieceMoveTo(
+                        piece: DynamicPiece2,
+                        droppedTo: IVec
+                    ) {
                         val move = Move(chess, Piece(piece.vec, piece.kind), droppedTo)
                         if (move.isValid()) {
-                            if(move.isPromotion && move.promotesTo == null){
-                                promotionRequest = PromotionRequest.Request(move){
+                            if (move.isPromotion && move.promotesTo == null) {
+                                promotionRequest = PromotionRequest.Request(move) {
                                     piece.kind = it
                                     move.promotesTo = it
                                     commitMove(move)
                                     promotionRequest = PromotionRequest.None
                                 }
-                            }else {
+                            } else {
                                 commitMove(move)
                             }
                             move.isAttack { attackedPiece ->
@@ -167,16 +211,16 @@ fun DynamicChessBoard(
 
                             }
                             piece.moveTo(coroutineScope, move.to) {
-                                if(move.isAttack){
+                                if (move.isAttack) {
                                     soundManager?.play(R.raw.capture)
                                 }
-                                if(move.validationResult.isOpponentInCheck){
+                                if (move.validationResult.isOpponentInCheck) {
                                     soundManager?.play(R.raw.check)
                                 }
                                 when {
-                                    move.isCastling -> {
-                                        soundManager?.play(R.raw.castles)
-                                    }
+//                                    move.isCastling -> {
+//                                        soundManager?.play(R.raw.castles)
+//                                    }
                                     else -> {
                                         soundManager?.play(R.raw.move)
                                     }
@@ -187,16 +231,16 @@ fun DynamicChessBoard(
                                     ?.moveTo(coroutineScope, to)
                             }
                             move.isPromotion {
-                                if(it != null)
+                                if (it != null)
                                     piece.kind = it
                             }
                         } else {
                             piece.moveTo(coroutineScope, piece.vec)
-//                            if(droppedTo.isInvalid){
-//                                soundManager?.play(R.raw.out_of_bound)
-//                            }else{
-                                soundManager?.play(R.raw.out_of_bound)
-//                            }
+                            //                            if(droppedTo.isInvalid){
+                            //                                soundManager?.play(R.raw.out_of_bound)
+                            //                            }else{
+                            soundManager?.play(R.raw.out_of_bound)
+                            //                            }
                         }
                     }
 
@@ -206,7 +250,7 @@ fun DynamicChessBoard(
                         dragAmount: Offset,
                         scope: PointerInputScope
                     ) {
-                        if(promotionRequest is PromotionRequest.Request){
+                        if (promotionRequest is PromotionRequest.Request || chess.state.activeColor != piece.kind.color) {
                             return
                         }
                         Log.d(TAG, "onPieceDrag: ")
@@ -218,17 +262,25 @@ fun DynamicChessBoard(
                     }
                 }
             }
-            ChessBackground()
+            ChessBackground(Modifier.pointerInput(Unit) {
+                detectTapGestures {
+                    val inp = it.div(size.toPx())
+                        .transform(whiteBottom.value, Offset(8f, 8f))
+                    val x = inp.x.toInt()
+                    val y = inp.y.toInt()
+                    userInputEvents.squareTapped(IVec(x, y))
+                }
+            })
             DynamicPieceLayer(
                 pieces,
                 whiteBottom = whiteBottom.value,
-                dragEvent = dragEvent,
+                chessUserInputEvents = userInputEvents,
                 image = images
             )
 
 
             promotionRequest.let { request ->
-                if(request is PromotionRequest.Request) {
+                if (request is PromotionRequest.Request) {
                     RequestPromotionPiece(
                         color = request.move.color,
                         vecTo = request.move.to,
@@ -332,7 +384,7 @@ private fun BoxWithConstraintsScope.FENPiecesLayer(fen: String, whiteBottom: Boo
 private fun BoxWithConstraintsScope.DynamicPieceLayer(
     pieces: SnapshotStateList<DynamicPiece2>,
     whiteBottom: Boolean = true,
-    dragEvent: DragEvent,
+    chessUserInputEvents: ChessUserInputEvents,
     image: Image,
 ) {
     val TAG = "ChessUI"
@@ -343,7 +395,7 @@ private fun BoxWithConstraintsScope.DynamicPieceLayer(
             piece,
             size = size,
             whiteBottom,
-            dragEvent = dragEvent,
+            chessUserInputEvents = chessUserInputEvents,
             image = image
         )
     }
@@ -368,7 +420,7 @@ private fun DynamicPieceImage(
     piece: DynamicPiece2,
     size: Dp,
     whiteBottom: Boolean = true,
-    dragEvent: DragEvent,
+    chessUserInputEvents: ChessUserInputEvents,
     image: Image,
 ) {
 //    piece.offset = animatedPieceOffset(piece = piece) {
@@ -383,19 +435,25 @@ private fun DynamicPieceImage(
                 size * piece.offset.x.transformX(whiteBottom, 7f),
                 size * piece.offset.y.transformY(whiteBottom, 7f)
             )
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) {
+                chessUserInputEvents.onPieceClicked(piece)
+            }
             .pointerInput(piece) {
                 detectDragGestures(
                     onDragStart = {
-                        dragEvent.onPieceDragStart(piece, it)
+                        chessUserInputEvents.onPieceDragStart(piece, it)
                     },
                     onDragEnd = {
-                        dragEvent.onPieceDragEnd(piece)
+                        chessUserInputEvents.onPieceDragEnd(piece)
                     },
                     onDragCancel = {
-                        dragEvent.onPieceDragEnd(piece)
+                        chessUserInputEvents.onPieceDragEnd(piece)
                     },
                     onDrag = { change, dragAmount ->
-                        dragEvent.onPieceDrag(piece, change, dragAmount, this)
+                        chessUserInputEvents.onPieceDrag(piece, change, dragAmount, this)
                     }
                 )
             },
@@ -470,7 +528,7 @@ private fun BoxWithConstraintsScope.ChessBackground(modifier: Modifier = Modifie
             for (x in 0..7) {
                 for (y in 0..7) {
 //                    val color = if (isWhite(x, y)) Color(0xFFD9D9FA) else Color(0xFF4949F5)
-                    val color = if (isWhite(x, y)) Color(0xFFF3F6FA) else Color(0xFF5C54D3)
+                    val color = if (isWhite(x, y)) Color(0xFFF3F6FA) else Color(0xFF6472C0)
                     drawRect(
                         color,
                         Offset(x * blockSize, y * blockSize),

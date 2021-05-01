@@ -102,7 +102,11 @@ sealed class MoveValidator {
         // TODO: 4/16/21 verify if this is latest move or throw exception
         if (!move.isValid()) return "?"
         val ambiguity = move.chess.pieces.values.toMutableList().filter {
-            it != move.piece && it.kind == move.piece.kind && StandardValidator.canLegallyMove(move.chess, it, move.to)
+            it != move.piece && it.kind == move.piece.kind && StandardValidator.canLegallyMove(
+                move.chess,
+                it,
+                move.to
+            )
         }
         move.validationResult.castling?.let {
             if (it.isKing) return "O-O"
@@ -133,9 +137,14 @@ sealed class MoveValidator {
             builder.append((move.promotesTo ?: 'Q').asWhite)
         }
 
-        if (move.validationResult.isOpponentInCheck) {
+        move.chess.makeMove(move, validate = false, commit = true)
+        val gameStatus = move.chess.gameStatus(move)
+        if(gameStatus == Chess.GameStatus.CHECK_MATE){
+            builder.append('#')
+        }else if (move.validationResult.isOpponentInCheck) {
             builder.append('+')
         }
+        move.chess.revertMove(move, validate = false, rollBack = true)
 
         return builder.toString()
     }
@@ -341,6 +350,156 @@ sealed class MoveValidator {
 
         private fun hasPieceInLine(from: IVec, dir: IVec, until: IVec? = null, chess: Chess) =
             from.inDirection(dir, until).any { chess.pieces[it] != null }
+
+        fun getPossibleMoves(
+            chess: Chess,
+            piece: Piece,
+            earlyReturnOneOrNone: Boolean = false
+        ): List<Move> {
+            return when (piece.kind.asWhite) {
+                'P' -> possibleMovesForPawn(chess, piece, earlyReturnOneOrNone)
+                'K' -> possibleMovesForKing(chess, piece, earlyReturnOneOrNone)
+                'Q' -> possibleMovesForQueen(chess, piece, earlyReturnOneOrNone)
+                'N' -> possibleMovesForKnight(chess, piece, earlyReturnOneOrNone)
+                'B' -> possibleMovesForBishop(chess, piece, earlyReturnOneOrNone)
+                'R' -> possibleMovesForRook(chess, piece, earlyReturnOneOrNone)
+                else -> emptyList()
+            }.also {
+                if(it.isNotEmpty())
+                    println("possible move = $it")
+            }
+        }
+
+        private val rookDirs = sequenceOf(0 x 1, 0 x -1, 1 x 0, -1 x 0)
+        private val bishopDirs = sequenceOf(1 x 1, 1 x -1, -1 x 1, -1 x -1)
+        private val horseHops = sequenceOf(
+            1 x 2, 1 x -2, -1 x 2, -1 x -2,
+            2 x 1, 2 x -1, -2 x 1, -2 x -1
+        )
+
+        private fun possibleMovesForPawn(
+            chess: Chess,
+            piece: Piece,
+            earlyReturnOneOrNone: Boolean
+        ): List<Move> {
+            val dy = if (piece.isWhite) 1 else -1
+            val moves = listOf(-1 x dy, 0 x dy, 1 x dy, 0 x 2 * dy).map {
+                Move(chess, piece, it + piece.vec)
+            }
+            return if (earlyReturnOneOrNone) {
+                moves.firstOrNull { validate(it).valid }?.let { listOf(it) } ?: emptyList()
+            } else {
+                moves.filter { validate(it).valid }
+            }
+        }
+
+        private fun possibleMovesForKing(
+            chess: Chess,
+            piece: Piece,
+            earlyReturnOneOrNone: Boolean
+        ): List<Move> {
+            return collectPossibleMovesForDestinations(
+                chess,
+                piece,
+                (bishopDirs + rookDirs).map { it + piece.vec },
+                breakIfAttack = false,
+                earlyReturnOneOrNone = earlyReturnOneOrNone
+            )
+        }
+
+        private fun possibleMovesForKnight(
+            chess: Chess,
+            piece: Piece,
+            earlyReturnOneOrNone: Boolean
+        ): List<Move> {
+            return collectPossibleMovesForDestinations(
+                chess,
+                piece,
+                horseHops.map { it + piece.vec },
+                breakIfAttack = false,
+                earlyReturnOneOrNone = earlyReturnOneOrNone
+            )
+        }
+
+        private fun possibleMovesForQueen(
+            chess: Chess,
+            piece: Piece,
+            earlyReturnOneOrNone: Boolean
+        ): List<Move> {
+            return possibleMovesInDirs(chess, piece, bishopDirs + rookDirs, earlyReturnOneOrNone)
+        }
+
+        private fun possibleMovesForBishop(
+            chess: Chess,
+            piece: Piece,
+            earlyReturnOneOrNone: Boolean
+        ): List<Move> {
+            return possibleMovesInDirs(chess, piece, bishopDirs, earlyReturnOneOrNone)
+        }
+
+        private fun possibleMovesForRook(
+            chess: Chess,
+            piece: Piece,
+            earlyReturnOneOrNone: Boolean
+        ): List<Move> {
+            return possibleMovesInDirs(chess, piece, rookDirs, earlyReturnOneOrNone)
+        }
+
+        private fun possibleMovesInDirs(
+            chess: Chess,
+            piece: Piece,
+            dirs: Sequence<IVec>,
+            earlyReturnOneOrNone: Boolean = false
+        ): List<Move> {
+            val moves = mutableListOf<Move>()
+            for (dir in dirs) {
+                collectPossibleMovesForDestinations(
+                    chess,
+                    piece,
+                    piece.vec.inDirection(dir),
+                    movesBucket = moves,
+                    earlyReturnOneOrNone = earlyReturnOneOrNone
+                )
+                if(earlyReturnOneOrNone && moves.isNotEmpty()) return moves
+            }
+            return moves
+        }
+
+        private fun collectPossibleMovesForDestinations(
+            chess: Chess,
+            piece: Piece,
+            destinations: Sequence<IVec>,
+            breakIfAttack: Boolean = true,
+            movesBucket: MutableList<Move> = mutableListOf(),
+            earlyReturnOneOrNone: Boolean = false
+        ): MutableList<Move> {
+            for (to in destinations) {
+                if (to.isInvalid) {
+                    if (breakIfAttack) break
+                    else continue
+                }
+                val fakeMove = Move(chess, piece, to, null, true)
+                if (fakeMove.attackedPiece?.color == piece.kind.color) {
+                    if (breakIfAttack) break
+                    else continue
+                }
+                chess.makeMove(fakeMove, validate = false, commit = false)
+                val isCheck = isCheck(chess, piece.kind.color)
+                    .also {
+                        chess.revertMove(
+                            fakeMove,
+                            validate = false,
+                            rollBack = false
+                        )
+                    }
+                if (!isCheck) {
+                    movesBucket.add(fakeMove)
+                    if (earlyReturnOneOrNone) return movesBucket
+                }
+                if (breakIfAttack && fakeMove.isAttack) break
+            }
+            return movesBucket
+        }
     }
 
     object NoCheck : MoveValidator() {
