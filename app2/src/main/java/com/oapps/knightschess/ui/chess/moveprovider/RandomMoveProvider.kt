@@ -7,6 +7,7 @@ import com.oapps.lib.chess.color
 
 class RandomMoveProvider : BaseMoveProvider() {
     override fun requestNextMove(chess: Chess, state: State.Capture): Boolean {
+        if(!accepts(state)) return false
         val p = chess.pieces.values.filter { it.kind.color == state.activeColor }.shuffled()
         val piece = p.firstOrNull {
             MoveValidator.StandardValidator.getPossibleMoves(

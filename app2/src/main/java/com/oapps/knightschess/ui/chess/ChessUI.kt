@@ -32,6 +32,8 @@ import com.oapps.knightschess.ui.chess.moveprovider.RandomMoveProvider
 import com.oapps.knightschess.ui.chess.theme.Image
 import com.oapps.lib.chess.*
 import com.oapps.lib.chess.State
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 private val TAG = "ChessUI"
@@ -127,8 +129,11 @@ fun DynamicChessBoard(
                 mutableStateOf<PromotionRequest>(PromotionRequest.None)
             }
 
-            val moveProvider = remember { RandomMoveProvider() }
-
+            val moveProvider = remember {
+                RandomMoveProvider().also {
+                    it.accepts = { state -> state.activeColor.isWhite }
+                }
+            }
 
             fun commitMove(move: Move, requestNextMove: Boolean = true) {
                 chess.makeMove(move)
@@ -145,7 +150,6 @@ fun DynamicChessBoard(
                 piece: DynamicPiece2,
                 droppedTo: IVec,
                 move: Move = Move(chess, Piece(piece.vec, piece.kind), droppedTo),
-                requestNextMove: Boolean = false
             ) {
                 if (move.isValid()) {
                     move.isAttack { attackedPiece ->
@@ -155,6 +159,14 @@ fun DynamicChessBoard(
                             pieces.remove(it)
                         }
 
+                    }
+                    move.isCastling { rook, to, _ ->
+                        pieces.find { it.vec == rook.vec && it.kind == rook.kind }
+                            ?.moveTo(coroutineScope, to)
+                    }
+                    move.isPromotion {
+                        if (it != null)
+                            piece.kind = it
                     }
                     piece.moveTo(coroutineScope, move.to) {
                         if (move.isAttack) {
@@ -182,14 +194,6 @@ fun DynamicChessBoard(
                             commitMove(move)
                         }
                     }
-                    move.isCastling { rook, to, _ ->
-                        pieces.find { it.vec == rook.vec && it.kind == rook.kind }
-                            ?.moveTo(coroutineScope, to)
-                    }
-                    move.isPromotion {
-                        if (it != null)
-                            piece.kind = it
-                    }
                 } else {
                     piece.moveTo(coroutineScope, piece.vec)
                     //                            if(droppedTo.isInvalid){
@@ -203,8 +207,12 @@ fun DynamicChessBoard(
 
             val onMoveReady = remember {
                 { move: Move, state: State.Capture ->
-                    pieces.firstOrNull { move.piece.vec == it.vec && move.piece.kind == it.kind }?.let {
-                        tryPieceMoveTo(it, move.to, move)
+                    coroutineScope.launch {
+                        delay(1000)
+                        pieces.firstOrNull { move.piece.vec == it.vec && move.piece.kind == it.kind }
+                            ?.let {
+                                tryPieceMoveTo(it, move.to, move)
+                            }
                     }
                     Unit
                 }
@@ -317,6 +325,10 @@ fun DynamicChessBoard(
             }
 
 //        InteractionLayer(pieces = pieces, whiteBottom = whiteBottom, dragEvent = dragEvent)
+            LaunchedEffect(key1 = Unit){
+                delay(1000)
+                moveProvider.requestNextMove(chess, chess.state.capture())
+            }
         }
         StaticChessBoard(fen = fen, modifier = Modifier.fillMaxWidth(0.24f))
     }

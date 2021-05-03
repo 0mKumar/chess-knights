@@ -5,6 +5,7 @@ import com.oapps.lib.chess.Move
 import com.oapps.lib.chess.State
 
 abstract class BaseMoveProvider {
+    var accepts = { state: State.Capture -> true }
     var onMoveReady: ((move: Move, state: State.Capture) -> Unit)? = null
     abstract fun requestNextMove(chess: Chess, state: State.Capture): Boolean
 }
