@@ -5,9 +5,6 @@ import com.oapps.lib.chess.Move
 import com.oapps.lib.chess.State
 
 abstract class BaseMoveProvider {
-    interface MoveReady{
-        fun onMoveReady(move: Move, state: State.Capture)
-    }
-    var onMoveReady: MoveReady? = null
+    var onMoveReady: ((move: Move, state: State.Capture) -> Unit)? = null
     abstract fun requestNextMove(chess: Chess, state: State.Capture): Boolean
 }

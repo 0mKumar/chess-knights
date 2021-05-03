@@ -155,8 +155,6 @@ sealed class MoveValidator {
             checkIllegal: Boolean,
             skipColorCheck: Boolean
         ): ValidationResult {
-            println("StandardValidator.validate")
-            println("move = [${move}], checkIllegal = [${checkIllegal}], skipColorCheck = [${skipColorCheck}]")
             val res = ValidationResult()
             res.capture = move.chess.state.capture()
             if (

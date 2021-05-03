@@ -8,7 +8,7 @@ class PredefinedMoveProvider(private val moves: List<String>): BaseMoveProvider(
     var index = 0
     override fun requestNextMove(chess: Chess, state: State.Capture): Boolean {
         val move = Move(chess, moves[index++])
-        onMoveReady?.onMoveReady(move, state)
+        onMoveReady?.invoke(move, state)
         return true
     }
 }

@@ -38,7 +38,7 @@ class DynamicPiece2(piece: Piece) {
             try {
                 vec = to
                 animate(Offset.VectorConverter, offset, to.toOffset(), velocity, tween(
-                    250 * cbrt(
+                    50 * cbrt(
                     (to.toOffset() - offset).getDistance()
                         .toDouble()
                 ).toInt()

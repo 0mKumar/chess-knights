@@ -27,8 +27,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.round
 import com.oapps.audio.SoundManager
 import com.oapps.knightschess.R
+import com.oapps.knightschess.ui.chess.moveprovider.BaseMoveProvider
+import com.oapps.knightschess.ui.chess.moveprovider.RandomMoveProvider
 import com.oapps.knightschess.ui.chess.theme.Image
 import com.oapps.lib.chess.*
+import com.oapps.lib.chess.State
 import kotlin.math.roundToInt
 
 private val TAG = "ChessUI"
@@ -124,14 +127,91 @@ fun DynamicChessBoard(
                 mutableStateOf<PromotionRequest>(PromotionRequest.None)
             }
 
-            fun commitMove(move: Move) {
+            val moveProvider = remember { RandomMoveProvider() }
+
+
+            fun commitMove(move: Move, requestNextMove: Boolean = true) {
                 chess.makeMove(move)
                 fen = chess.generateFen()
-                val whiteCheck = MoveValidator.StandardValidator.isCheck(chess, true)
-                Log.d(TAG, "commitMove: white check = $whiteCheck")
-                val blackCheck = MoveValidator.StandardValidator.isCheck(chess, false)
-                Log.d(TAG, "commitMove: black check = $blackCheck")
+//                val whiteCheck = MoveValidator.StandardValidator.isCheck(chess, true)
+//                Log.d(TAG, "commitMove: white check = $whiteCheck")
+//                val blackCheck = MoveValidator.StandardValidator.isCheck(chess, false)
+//                Log.d(TAG, "commitMove: black check = $blackCheck")
+                if (requestNextMove)
+                    moveProvider.requestNextMove(chess, chess.state.capture())
             }
+
+            fun tryPieceMoveTo(
+                piece: DynamicPiece2,
+                droppedTo: IVec,
+                move: Move = Move(chess, Piece(piece.vec, piece.kind), droppedTo),
+                requestNextMove: Boolean = false
+            ) {
+                if (move.isValid()) {
+                    move.isAttack { attackedPiece ->
+                        pieces.find {
+                            it.vec == attackedPiece.vec && it.kind == attackedPiece.kind
+                        }?.let {
+                            pieces.remove(it)
+                        }
+
+                    }
+                    piece.moveTo(coroutineScope, move.to) {
+                        if (move.isAttack) {
+                            soundManager?.play(R.raw.capture)
+                        }
+                        if (move.validationResult.isOpponentInCheck) {
+                            soundManager?.play(R.raw.check)
+                        }
+                        when {
+//                                    move.isCastling -> {
+//                                        soundManager?.play(R.raw.castles)
+//                                    }
+                            else -> {
+                                soundManager?.play(R.raw.move)
+                            }
+                        }
+                        if (move.isPromotion && move.promotesTo == null) {
+                            promotionRequest = PromotionRequest.Request(move) {
+                                piece.kind = it
+                                move.promotesTo = it
+                                commitMove(move)
+                                promotionRequest = PromotionRequest.None
+                            }
+                        } else {
+                            commitMove(move)
+                        }
+                    }
+                    move.isCastling { rook, to, _ ->
+                        pieces.find { it.vec == rook.vec && it.kind == rook.kind }
+                            ?.moveTo(coroutineScope, to)
+                    }
+                    move.isPromotion {
+                        if (it != null)
+                            piece.kind = it
+                    }
+                } else {
+                    piece.moveTo(coroutineScope, piece.vec)
+                    //                            if(droppedTo.isInvalid){
+                    //                                soundManager?.play(R.raw.out_of_bound)
+                    //                            }else{
+                    soundManager?.play(R.raw.out_of_bound)
+                    //                            }
+                }
+            }
+
+
+            val onMoveReady = remember {
+                { move: Move, state: State.Capture ->
+                    pieces.firstOrNull { move.piece.vec == it.vec && move.piece.kind == it.kind }?.let {
+                        tryPieceMoveTo(it, move.to, move)
+                    }
+                    Unit
+                }
+            }
+
+            moveProvider.onMoveReady = onMoveReady
+
 
             val userInputEvents = remember {
                 object : ChessUserInputEvents() {
@@ -151,7 +231,7 @@ fun DynamicChessBoard(
                                 selectedPiece = null
                             }
                             null -> {
-                                if(piece.kind.color == chess.state.activeColor) {
+                                if (piece.kind.color == chess.state.activeColor) {
                                     selectedPiece = piece
                                     val moves = MoveValidator.StandardValidator.getPossibleMoves(
                                         chess,
@@ -184,64 +264,6 @@ fun DynamicChessBoard(
                             piece.offset.y.roundToInt()
                         )
                         tryPieceMoveTo(piece, droppedTo)
-                    }
-
-                    private fun tryPieceMoveTo(
-                        piece: DynamicPiece2,
-                        droppedTo: IVec
-                    ) {
-                        val move = Move(chess, Piece(piece.vec, piece.kind), droppedTo)
-                        if (move.isValid()) {
-                            if (move.isPromotion && move.promotesTo == null) {
-                                promotionRequest = PromotionRequest.Request(move) {
-                                    piece.kind = it
-                                    move.promotesTo = it
-                                    commitMove(move)
-                                    promotionRequest = PromotionRequest.None
-                                }
-                            } else {
-                                commitMove(move)
-                            }
-                            move.isAttack { attackedPiece ->
-                                pieces.find {
-                                    it.vec == attackedPiece.vec && it.kind == attackedPiece.kind
-                                }?.let {
-                                    pieces.remove(it)
-                                }
-
-                            }
-                            piece.moveTo(coroutineScope, move.to) {
-                                if (move.isAttack) {
-                                    soundManager?.play(R.raw.capture)
-                                }
-                                if (move.validationResult.isOpponentInCheck) {
-                                    soundManager?.play(R.raw.check)
-                                }
-                                when {
-//                                    move.isCastling -> {
-//                                        soundManager?.play(R.raw.castles)
-//                                    }
-                                    else -> {
-                                        soundManager?.play(R.raw.move)
-                                    }
-                                }
-                            }
-                            move.isCastling { rook, to, _ ->
-                                pieces.find { it.vec == rook.vec && it.kind == rook.kind }
-                                    ?.moveTo(coroutineScope, to)
-                            }
-                            move.isPromotion {
-                                if (it != null)
-                                    piece.kind = it
-                            }
-                        } else {
-                            piece.moveTo(coroutineScope, piece.vec)
-                            //                            if(droppedTo.isInvalid){
-                            //                                soundManager?.play(R.raw.out_of_bound)
-                            //                            }else{
-                            soundManager?.play(R.raw.out_of_bound)
-                            //                            }
-                        }
                     }
 
                     override fun onPieceDrag(
