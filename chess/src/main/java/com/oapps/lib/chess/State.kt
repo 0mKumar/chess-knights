@@ -13,8 +13,6 @@ class State(fen: String) {
         }
     }
 
-
-
     // no of moves since last capture or pawn move
     var halfMoveClock = 0
     private var halfMoveCount = 2
@@ -27,6 +25,13 @@ class State(fen: String) {
     init {
         reset(fen)
     }
+
+    var stateCapture = capture()
+        get() {
+            if(field.halfMoveCount != halfMoveCount) field = capture()
+            return field
+        }
+
 
     private fun resetCastling(whoCanCastle: String = "KQkq") {
         castling = whoCanCastle

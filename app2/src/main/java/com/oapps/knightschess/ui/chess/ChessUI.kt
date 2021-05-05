@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.round
 import com.oapps.audio.SoundManager
 import com.oapps.knightschess.R
 import com.oapps.knightschess.ui.chess.moveprovider.BaseMoveProvider
+import com.oapps.knightschess.ui.chess.moveprovider.PredefinedMoveProvider
 import com.oapps.knightschess.ui.chess.moveprovider.RandomMoveProvider
 import com.oapps.knightschess.ui.chess.theme.Image
 import com.oapps.lib.chess.*
@@ -130,8 +131,13 @@ fun DynamicChessBoard(
             }
 
             val moveProvider = remember {
-                RandomMoveProvider().also {
-                    it.accepts = { state -> state.activeColor.isWhite }
+//                RandomMoveProvider().also {
+//                    it.accepts = { state -> state.activeColor.isWhite }
+//                }
+                PredefinedMoveProvider(listOf("e4", "f4", "Nc3", "Nf3"), moveStringTypeSan = true).apply {
+                    accepts = {
+                        it.activeColor.isWhite
+                    }
                 }
             }
 
