@@ -4,9 +4,6 @@ import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.gestures.scrollable
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.rememberScrollState
@@ -15,39 +12,18 @@ import androidx.compose.material.Button
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Surface
 import androidx.compose.material.Text
-import androidx.compose.runtime.*
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import com.oapps.audio.SoundManager
 import com.oapps.knightschess.ui.chess.DynamicChessBoard
-import com.oapps.knightschess.ui.chess.DynamicChessBoardPreview
 import com.oapps.knightschess.ui.chess.theme.Image
 import com.oapps.knightschess.ui.theme.ChessKnightsTheme
 
 
 class MainActivity : ComponentActivity() {
     private val TAG = "MainActivity"
-    var mSoundManager: MutableState<SoundManager?> = mutableStateOf(null)
-
-    override fun onResume() {
-        super.onResume()
-        val maxSimultaneousStreams = 3
-        mSoundManager.value = SoundManager(this, maxSimultaneousStreams)
-        mSoundManager.value?.start()
-        mSoundManager.value?.load(R.raw.move)
-        mSoundManager.value?.load(R.raw.error)
-        mSoundManager.value?.load(R.raw.out_of_bound)
-        mSoundManager.value?.load(R.raw.select)
-        mSoundManager.value?.load(R.raw.check)
-        mSoundManager.value?.load(R.raw.capture)
-    }
-
-    override fun onPause() {
-        super.onPause()
-        if (mSoundManager.value != null) {
-            mSoundManager.value?.cancel()
-            mSoundManager.value = null
-        }
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -60,7 +36,7 @@ class MainActivity : ComponentActivity() {
                         var images by remember { mutableStateOf<Image>(Image.Staunty) }
                         var name by remember { mutableStateOf(images.type) }
                         var ind by remember { mutableStateOf(0) }
-                        DynamicChessBoard(modifier = Modifier.fillMaxWidth(), soundManager = mSoundManager.value, images = images)
+                        DynamicChessBoard(modifier = Modifier.fillMaxWidth(), images = images)
                         Button(onClick = {
                             Log.d(TAG, "onCreate: $ind")
                             ind++

@@ -96,8 +96,8 @@ sealed class MoveValidator {
     }
 
     fun sanForMove(move: Move): String {
-        println("MoveValidator.sanForMove")
-        println("move = [${move}]")
+//        println("MoveValidator.sanForMove")
+//        println("move = [${move}]")
 //        return "disabled"
         // TODO: 4/16/21 verify if this is latest move or throw exception
         if (!move.isValid()) return "?"
@@ -187,11 +187,10 @@ sealed class MoveValidator {
 //            if(move.piece.isKing) return false
             val fakeMove = Move(move.chess, move.piece, move.to, move.promotesTo, false)
             move.chess.makeMove(fakeMove, validate = false, commit = false)
-            println("checking if check")
+//            println("checking if check")
             return isCheck(move.chess, move.color)
                 .also {
                     res.isOpponentInCheck = isCheck(move.chess, !move.color)
-                    println("reverting... $fakeMove")
                     move.chess.revertMove(
                         fakeMove,
                         validate = false,
@@ -207,11 +206,8 @@ sealed class MoveValidator {
         }
 
         private fun validateBishopFails(move: Move, res: ValidationResult): Boolean {
-            println("StandardValidator.validateBishopFails $move")
             if (move.diff.absolute.run { x != y }) return true
-            println("StandardValidator.validateBishopFails 1")
             if (hasPieceInLine(move.piece.vec, move.diff.sign, move.to, move.chess)) return true
-            println("StandardValidator.validateBishopFails 2")
             return false
         }
 
@@ -287,13 +283,11 @@ sealed class MoveValidator {
             color: Boolean,
             king: Piece? = chess.pieces.values.find { it.isKing && it.kind.color == color }
         ): Boolean {
-            println("StandardValidator.isCheck")
             king ?: return false
             for (opp in chess.pieces.values) {
                 if (opp.kind.color == color) continue
                 val move = Move(chess, opp, king.vec, checkIllegal = false)
                 if (validate(move, checkIllegal = false, skipColorCheck = true).valid) {
-                    println("check by ${move.piece}")
                     return true
                 }
             }
@@ -303,7 +297,7 @@ sealed class MoveValidator {
 
         fun canLegallyMove(chess: Chess, piece: Piece, to: IVec): Boolean {
             println("StandardValidator.canLegallyMove")
-            println("chess = [${chess}], piece = [${piece}], to = [${to}]")
+            println("piece = [${piece}], to = [${to}]")
             val move = Move(chess, piece, to)
             return move.isValid()
         }
@@ -362,9 +356,6 @@ sealed class MoveValidator {
                 'B' -> possibleMovesForBishop(chess, piece, earlyReturnOneOrNone)
                 'R' -> possibleMovesForRook(chess, piece, earlyReturnOneOrNone)
                 else -> emptyList()
-            }.also {
-                if(it.isNotEmpty())
-                    println("possible move = $it")
             }
         }
 
@@ -456,7 +447,8 @@ sealed class MoveValidator {
                     piece,
                     piece.vec.inDirection(dir),
                     movesBucket = moves,
-                    earlyReturnOneOrNone = earlyReturnOneOrNone
+                    earlyReturnOneOrNone = earlyReturnOneOrNone,
+                    breakIfAttack = true
                 )
                 if(earlyReturnOneOrNone && moves.isNotEmpty()) return moves
             }
@@ -494,7 +486,7 @@ sealed class MoveValidator {
                     movesBucket.add(fakeMove)
                     if (earlyReturnOneOrNone) return movesBucket
                 }
-                if (breakIfAttack && fakeMove.isAttack) break
+                if (breakIfAttack && fakeMove.attackedPiece != null) break
             }
             return movesBucket
         }

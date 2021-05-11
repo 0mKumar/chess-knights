@@ -1,6 +1,6 @@
 package com.oapps.knightschess.ui.chess
 
-import android.util.Log
+import android.R.attr
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
@@ -9,33 +9,41 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Surface
+import androidx.compose.material.Text
 import androidx.compose.runtime.*
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.PointerInputScope
-import androidx.compose.ui.input.pointer.consumeAllChanges
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.round
 import com.oapps.audio.SoundManager
 import com.oapps.knightschess.R
-import com.oapps.knightschess.ui.chess.moveprovider.BaseMoveProvider
-import com.oapps.knightschess.ui.chess.moveprovider.PredefinedMoveProvider
 import com.oapps.knightschess.ui.chess.moveprovider.RandomMoveProvider
 import com.oapps.knightschess.ui.chess.theme.Image
 import com.oapps.lib.chess.*
-import com.oapps.lib.chess.State
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlin.math.roundToInt
+import android.R.attr.label
+
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.util.Log
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+
+import androidx.core.content.ContextCompat.getSystemService
+
+
+
 
 private val TAG = "ChessUI"
 
@@ -98,247 +106,131 @@ fun DynamicChessBoard(
         mutableStateOf(true)
     },
     images: Image = Image.Staunty,
-    soundManager: SoundManager? = null
 ) {
     // TODO: 4/26/21 account for pre moves
-    val pieces = remember {
-        chess.pieces
-            .values
-            .map { DynamicPiece2(it) }
-            .toMutableStateList()
+
+    val coroutineScope = rememberCoroutineScope()
+    var fullFen by remember { mutableStateOf(chess.generateFullFen()) }
+    val moves = remember { mutableStateListOf<Pair<String, String>>() }
+
+    val gameManager = remember {
+        GameManager(
+            coroutineScope,
+            chess,
+            player1 = AutomaticPlayer(true, RandomMoveProvider(), 0),
+            player2 = AutomaticPlayer(false, RandomMoveProvider(), 0),
+            beforeMakeMove = {
+                Log.d(TAG, "DynamicChessBoard: before make move $it")
+                val san = MoveValidator.StandardValidator.sanForMove(it)
+                if(it.color.isWhite) {
+                    moves.add(san to "")
+                }else{
+                    if(moves.isEmpty()) moves.add("" to san)
+                    else {
+                        val last = moves.last().first
+                        moves.removeAt(moves.size - 1)
+                        moves.add(last to san)
+                    }
+                }
+            },
+            onMoveComplete = {
+                Log.d(TAG, "DynamicChessBoard: after make move $it")
+                fullFen = it.chess.generateFullFen()
+            }
+        )
     }
 
-//    LaunchedEffect(true) {
-//        delay(5000)
-//        for (i in 0..10) {
-//            pieces.first().moveTo(this, IVec((0..7).random(), (0..7).random())){
-//                Log.d(TAG, "DynamicChessBoard: move anim cancelled = $it")
+    val context = LocalContext.current
+//    DisposableEffect(Unit) {
+//        gameManager.soundManager = SoundManager(context, 3)
+//        gameManager.soundManager?.start()
+//        gameManager.soundManager?.load(R.raw.move)
+//        gameManager.soundManager?.load(R.raw.error)
+//        gameManager.soundManager?.load(R.raw.out_of_bound)
+//        gameManager.soundManager?.load(R.raw.select)
+//        gameManager.soundManager?.load(R.raw.check)
+//        gameManager.soundManager?.load(R.raw.capture)
+//        onDispose {
+//            if (gameManager.soundManager != null) {
+//                gameManager.soundManager?.cancel()
+//                gameManager.soundManager = null
 //            }
-////            pieces.random().kind = "PKQRN".random().ofColor(random() < 0.5)
 //        }
 //    }
-    var fen by remember {
-        mutableStateOf(chess.generateFen())
-    }
 
     Column {
         ChessBox(modifier) {
-            val size = maxWidth / 8
-            val coroutineScope = rememberCoroutineScope()
+            ChessUI(gameManager, whiteBottom, images)
+        }
+        StaticChessBoard(fen = gameManager.fen, modifier = Modifier.fillMaxWidth(0.24f))
 
-            var promotionRequest by remember {
-                mutableStateOf<PromotionRequest>(PromotionRequest.None)
-            }
-
-            val moveProvider = remember {
-//                RandomMoveProvider().also {
-//                    it.accepts = { state -> state.activeColor.isWhite }
-//                }
-                PredefinedMoveProvider(listOf("e4", "f4", "Nc3", "Nf3"), moveStringTypeSan = true).apply {
-                    accepts = {
-                        it.activeColor.isWhite
-                    }
-                }
-            }
-
-            fun commitMove(move: Move, requestNextMove: Boolean = true) {
-                chess.makeMove(move)
-                fen = chess.generateFen()
-//                val whiteCheck = MoveValidator.StandardValidator.isCheck(chess, true)
-//                Log.d(TAG, "commitMove: white check = $whiteCheck")
-//                val blackCheck = MoveValidator.StandardValidator.isCheck(chess, false)
-//                Log.d(TAG, "commitMove: black check = $blackCheck")
-                if (requestNextMove)
-                    moveProvider.requestNextMove(chess, chess.state.capture())
-            }
-
-            fun tryPieceMoveTo(
-                piece: DynamicPiece2,
-                droppedTo: IVec,
-                move: Move = Move(chess, Piece(piece.vec, piece.kind), droppedTo),
-            ) {
-                if (move.isValid()) {
-                    move.isAttack { attackedPiece ->
-                        pieces.find {
-                            it.vec == attackedPiece.vec && it.kind == attackedPiece.kind
-                        }?.let {
-                            pieces.remove(it)
-                        }
-
-                    }
-                    move.isCastling { rook, to, _ ->
-                        pieces.find { it.vec == rook.vec && it.kind == rook.kind }
-                            ?.moveTo(coroutineScope, to)
-                    }
-                    move.isPromotion {
-                        if (it != null)
-                            piece.kind = it
-                    }
-                    piece.moveTo(coroutineScope, move.to) {
-                        if (move.isAttack) {
-                            soundManager?.play(R.raw.capture)
-                        }
-                        if (move.validationResult.isOpponentInCheck) {
-                            soundManager?.play(R.raw.check)
-                        }
-                        when {
-//                                    move.isCastling -> {
-//                                        soundManager?.play(R.raw.castles)
-//                                    }
-                            else -> {
-                                soundManager?.play(R.raw.move)
-                            }
-                        }
-                        if (move.isPromotion && move.promotesTo == null) {
-                            promotionRequest = PromotionRequest.Request(move) {
-                                piece.kind = it
-                                move.promotesTo = it
-                                commitMove(move)
-                                promotionRequest = PromotionRequest.None
-                            }
-                        } else {
-                            commitMove(move)
-                        }
-                    }
-                } else {
-                    piece.moveTo(coroutineScope, piece.vec)
-                    //                            if(droppedTo.isInvalid){
-                    //                                soundManager?.play(R.raw.out_of_bound)
-                    //                            }else{
-                    soundManager?.play(R.raw.out_of_bound)
-                    //                            }
-                }
-            }
-
-
-            val onMoveReady = remember {
-                { move: Move, state: State.Capture ->
-                    coroutineScope.launch {
-                        delay(1000)
-                        pieces.firstOrNull { move.piece.vec == it.vec && move.piece.kind == it.kind }
-                            ?.let {
-                                tryPieceMoveTo(it, move.to, move)
-                            }
-                    }
-                    Unit
-                }
-            }
-
-            moveProvider.onMoveReady = onMoveReady
-
-
-            val userInputEvents = remember {
-                object : ChessUserInputEvents() {
-
-                    override fun squareTapped(square: IVec) {
-                        selectedPiece?.let {
-                            tryPieceMoveTo(it, square)
-                        }
-                        selectedPiece = null
-                    }
-
-                    override fun onPieceClicked(piece: DynamicPiece2) {
-                        Log.d(TAG, "onPieceClicked: doing...")
-                        when (selectedPiece) {
-                            piece -> {
-                                // simply unselect piece
-                                selectedPiece = null
-                            }
-                            null -> {
-                                if (piece.kind.color == chess.state.activeColor) {
-                                    selectedPiece = piece
-                                    val moves = MoveValidator.StandardValidator.getPossibleMoves(
-                                        chess,
-                                        piece.asPiece()
-                                    )
-                                    Log.d(
-                                        TAG,
-                                        "onPieceClicked: possible moves for $piece = ${moves.size} ${moves.map { it.to.loc }}"
-                                    )
-                                }
-                            }
-                            else -> {
-                                selectedPiece?.let { tryPieceMoveTo(it, piece.vec) }
-                                selectedPiece = null
-                            }
-                        }
-                    }
-
-                    override fun onPieceDragStart(piece: DynamicPiece2, offset: Offset) {
-                        Log.d(TAG, "onPieceDragStart: ")
-                        draggedPiece = piece
-//                        soundManager?.play(R.raw.select)
-                    }
-
-                    override fun onPieceDragEnd(piece: DynamicPiece2) {
-                        Log.d(TAG, "onPieceDragEnd: ")
-                        draggedPiece = null
-                        val droppedTo = IVec(
-                            piece.offset.x.roundToInt(),
-                            piece.offset.y.roundToInt()
-                        )
-                        tryPieceMoveTo(piece, droppedTo)
-                    }
-
-                    override fun onPieceDrag(
-                        piece: DynamicPiece2,
-                        change: PointerInputChange,
-                        dragAmount: Offset,
-                        scope: PointerInputScope
-                    ) {
-                        if (promotionRequest is PromotionRequest.Request || chess.state.activeColor != piece.kind.color) {
-                            return
-                        }
-                        Log.d(TAG, "onPieceDrag: ")
-                        change.consumeAllChanges()
-                        val drag = dragAmount
-                            .div(with(scope) { size.toPx() })
-                            .transformDirection(whiteBottom.value)
-                        piece.snapDrag(drag)
-                    }
-                }
-            }
-            ChessBackground(Modifier.pointerInput(Unit) {
-                detectTapGestures {
-                    val inp = it.div(size.toPx())
-                        .transform(whiteBottom.value, Offset(8f, 8f))
-                    val x = inp.x.toInt()
-                    val y = inp.y.toInt()
-                    userInputEvents.squareTapped(IVec(x, y))
-                }
-            })
-            DynamicPieceLayer(
-                pieces,
-                whiteBottom = whiteBottom.value,
-                chessUserInputEvents = userInputEvents,
-                image = images
-            )
-
-
-            promotionRequest.let { request ->
-                if (request is PromotionRequest.Request) {
-                    RequestPromotionPiece(
-                        color = request.move.color,
-                        vecTo = request.move.to,
-                        onPieceTypeSelected = {
-                            // TODO: 4/26/21 request state and account for pre move
-                            request.onComplete(it)
-                        },
-                        image = images,
-                        whiteBottom = whiteBottom
-                    )
-                }
-            }
-
-//        InteractionLayer(pieces = pieces, whiteBottom = whiteBottom, dragEvent = dragEvent)
-            LaunchedEffect(key1 = Unit){
-                delay(1000)
-                moveProvider.requestNextMove(chess, chess.state.capture())
+        Text(fullFen, Modifier.clickable {
+            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            clipboard.setPrimaryClip(ClipData.newPlainText("fen", fullFen))
+        })
+        Column() {
+            for(it in moves){
+                Text(it.first + "\t\t\t" + it.second)
             }
         }
-        StaticChessBoard(fen = fen, modifier = Modifier.fillMaxWidth(0.24f))
     }
 
+}
+
+@Composable
+private fun BoxWithConstraintsScope.ChessUI(
+    gameManager: GameManager,
+    whiteBottom: MutableState<Boolean>,
+    images: Image,
+) {
+    val size = maxWidth / 8
+
+    val userInputEvents = remember {
+        object : ChessUserInputEvents(gameManager) {
+            override fun Offset.toVecFraction(scope: PointerInputScope): Offset {
+                return this.div(with(scope) { size.toPx() })
+                    .transformDirection(whiteBottom.value)
+            }
+        }
+    }
+
+    ChessBackground(Modifier.pointerInput(Unit) {
+        detectTapGestures {
+            val inp = it.div(size.toPx())
+                .transform(whiteBottom.value, Offset(8f, 8f))
+            val x = inp.x.toInt()
+            val y = inp.y.toInt()
+            userInputEvents.squareTapped(IVec(x, y))
+        }
+    })
+    DynamicPieceLayer(
+        gameManager.pieces,
+        whiteBottom = whiteBottom.value,
+        chessUserInputEvents = userInputEvents,
+        image = images
+    )
+
+
+    gameManager.promotionRequest.let { request ->
+        if (request is PromotionRequest.Request) {
+            RequestPromotionPiece(
+                color = request.move.color,
+                vecTo = request.move.to,
+                onPieceTypeSelected = {
+                    // TODO: 4/26/21 request state and account for pre move
+                    request.onComplete(it)
+                },
+                image = images,
+                whiteBottom = whiteBottom
+            )
+        }
+    }
+
+    // InteractionLayer(pieces = pieces, whiteBottom = whiteBottom, dragEvent = dragEvent)
+    LaunchedEffect(key1 = Unit) {
+        delay(1000)
+        gameManager.requestNextMove()
+    }
 }
 
 
@@ -427,8 +319,6 @@ private fun BoxWithConstraintsScope.DynamicPieceLayer(
     chessUserInputEvents: ChessUserInputEvents,
     image: Image,
 ) {
-    val TAG = "ChessUI"
-
     val size = maxWidth / 8
     for (piece in pieces) {
         DynamicPieceImage(
@@ -463,11 +353,6 @@ private fun DynamicPieceImage(
     chessUserInputEvents: ChessUserInputEvents,
     image: Image,
 ) {
-//    piece.offset = animatedPieceOffset(piece = piece) {
-//        onFinishAnimation?.invoke(piece, it)
-//        Log.d(TAG, "DynamicPieceImage: animation complete")
-//    }
-
     Image(
         modifier = Modifier
             .size(size, size)
@@ -501,54 +386,6 @@ private fun DynamicPieceImage(
         contentDescription = pieceName[piece.kind]
     )
 }
-//
-//@Composable
-//fun animatedPieceOffset(
-//    piece: DynamicPiece,
-//    onComplete: ((cancelled: Boolean) -> Unit)? = null
-//): Offset {
-//
-//    val target = piece.vec
-//
-//    var running by remember {
-//        mutableStateOf(false)
-//    }
-//
-//    LaunchedEffect(piece.dragOffset) {
-//        Log.d(TAG, "animatedPieceOffset: new drag = ${piece.dragOffset}")
-//        piece.animation.snapTo(piece.dragOffset)
-//        running = false
-//    }
-//
-//    LaunchedEffect(target, piece.dragging) {
-//        if(!piece.animate) return@LaunchedEffect
-//        if (piece.dragging) return@LaunchedEffect
-//
-//
-//        val targetOffset = target.toOffset()
-//
-//        if (running) {
-//            onComplete?.invoke(true)
-//        }
-//
-//        running = true
-//
-//        piece.animate = false
-//
-//        val res = piece.animation.animateTo(
-//            targetValue = targetOffset,
-//            animationSpec = tween(
-//                250 * cbrt(
-//                    (targetOffset - piece.animation.value).getDistance()
-//                        .toDouble()
-//                ).toInt()
-//            ),
-//        )
-//        onComplete?.invoke(false)
-//        running = false
-//    }
-//    return piece.animation.value
-//}
 
 @Composable
 private fun ChessBox(

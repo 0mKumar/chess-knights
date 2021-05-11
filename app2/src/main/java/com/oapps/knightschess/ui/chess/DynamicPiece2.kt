@@ -36,9 +36,10 @@ class DynamicPiece2(piece: Piece) {
         animJob = scope.launch {
             var done = false
             try {
+                println("moveTo called for ${this@DynamicPiece2} $to")
                 vec = to
                 animate(Offset.VectorConverter, offset, to.toOffset(), velocity, tween(
-                    50 * cbrt(
+                    1 * cbrt(
                     (to.toOffset() - offset).getDistance()
                         .toDouble()
                 ).toInt()
@@ -47,15 +48,15 @@ class DynamicPiece2(piece: Piece) {
                     velocity = currentVelocity
                 }
                 velocity = null
+                Log.d(TAG, "moveTo ${this@DynamicPiece2}: complete")
                 onComplete?.invoke(false)
                 done = true
-                Log.d(TAG, "moveTo: complete")
             }catch (e: CancellationException){
-                Log.d(TAG, "moveTo: cancelled")
+                Log.d(TAG, "moveTo ${this@DynamicPiece2}: cancelled")
                 throw e
             }finally {
                 if(!done){
-                    Log.d(TAG, "moveTo: cancel reporting")
+                    Log.d(TAG, "moveTo ${this@DynamicPiece2}: cancel reporting")
                     onComplete?.invoke(true)
                 }
             }

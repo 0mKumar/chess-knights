@@ -5,6 +5,8 @@ class Chess(
     var options: Options = Options(),
     val validator: MoveValidator = MoveValidator.StandardValidator
 ) {
+    inline val capturedState get() = state.stateCapture
+
     private val _pieces = fromFen(fen)
     val pieces: Map<IVec, Piece> get() = _pieces
 
@@ -55,8 +57,10 @@ class Chess(
             val isCheck = lastMove?.validationResult?.isOpponentInCheck
                 ?: MoveValidator.StandardValidator.isCheck(this, state.activeColor)
             if (isCheck) {
+                println("checkmate #")
                 return GameStatus.CHECK_MATE
             }
+            println("stalemate")
             return GameStatus.STALE_MATE
         }
         return GameStatus.NORMAL

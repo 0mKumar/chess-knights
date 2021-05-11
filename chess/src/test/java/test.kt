@@ -51,4 +51,11 @@ class Test{
         }
     }
 
+    @Test
+    fun debugFindPossibleMove(){
+        val chess = Chess("6r1/4P3/1p1k4/1N3Prp/R1B3p1/6Kp/n3R2N/B1Q5 b - - 15 55")
+        val moves = MoveValidator.StandardValidator.getPossibleMoves(chess, chess[IVec("d6")]!!)
+        println(moves)
+    }
+
 }

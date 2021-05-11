@@ -1,47 +1,26 @@
 package com.oapps.knightschess.ui.chess
 
 import androidx.compose.runtime.*
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.platform.LocalContext
 import com.oapps.audio.SoundManager
 import com.oapps.knightschess.R
-import com.oapps.lib.chess.Chess
-import com.oapps.lib.chess.Move
-import com.oapps.lib.chess.isWhite
+import com.oapps.lib.chess.*
 import kotlinx.coroutines.CoroutineScope
 
 val White = true
 val Black = false
 
 class GameManager(
-    private val coroutineScope: CoroutineScope,
-    private val chess: Chess = Chess(),
+    val coroutineScope: CoroutineScope,
+    val chess: Chess = Chess(),
     val player1: Player = ManualPlayer(White),
     val player2: Player = ManualPlayer(Black),
+    private val beforeMakeMove: ((move: Move) -> Unit)? = null,
     private val onMoveComplete: ((move: Move) -> Unit)? = null
 ) {
 
-    private var soundManager: SoundManager? = null
-
-    @Composable
-    fun Update(){
-        val context = LocalContext.current
-        DisposableEffect(Unit) {
-            soundManager = SoundManager(context, 3)
-            soundManager?.start()
-            soundManager?.load(R.raw.move)
-            soundManager?.load(R.raw.error)
-            soundManager?.load(R.raw.out_of_bound)
-            soundManager?.load(R.raw.select)
-            soundManager?.load(R.raw.check)
-            soundManager?.load(R.raw.capture)
-            onDispose {
-                if (soundManager != null) {
-                    soundManager?.cancel()
-                    soundManager = null
-                }
-            }
-        }
-    }
+    var soundManager: SoundManager? = null
 
     val pieces = chess.pieces
         .values
@@ -55,24 +34,22 @@ class GameManager(
 
     val moves = mutableListOf<Move>()
 
-    val currentPlayer get() = if(chess.state.activeColor.isWhite) player1 else player2
+    val currentPlayer get() = if (chess.state.activeColor.isWhite) player1 else player2
 
     fun requestNextMove() {
         currentPlayer.requestNextMove(this)
     }
 
-    private fun tryMakeMove(piece: DynamicPiece2, move: Move) {
+    fun tryMakeMove(
+        piece: DynamicPiece2,
+        move: Move
+    ) {
         if (move.isValid()) {
             move.isAttack { attackedPiece ->
-                pieces.find {
-                    it.vec == attackedPiece.vec && it.kind == attackedPiece.kind
-                }?.let {
-                    pieces.remove(it)
-                }
+                pieces.remove(attackedPiece)
             }
             move.isCastling { rook, to, _ ->
-                pieces.find { it.vec == rook.vec && it.kind == rook.kind }
-                    ?.moveTo(coroutineScope, to)
+                pieces.find(rook)?.moveTo(coroutineScope, to)
             }
             move.isPromotion {
                 if (it != null)
@@ -108,6 +85,7 @@ class GameManager(
     }
 
     private fun commitMove(move: Move) {
+        beforeMakeMove?.invoke(move)
         chess.makeMove(move)
         fen = chess.generateFen()
         moves.add(move)
