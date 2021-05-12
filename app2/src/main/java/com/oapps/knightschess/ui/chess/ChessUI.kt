@@ -1,10 +1,15 @@
 package com.oapps.knightschess.ui.chess
 
-import android.R.attr
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.util.Log
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.*
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -18,31 +23,27 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.layoutId
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.oapps.audio.SoundManager
+import androidx.compose.ui.unit.sp
+import androidx.constraintlayout.compose.ConstraintLayout
+import androidx.constraintlayout.compose.ConstraintSet
+import androidx.constraintlayout.compose.Dimension
 import com.oapps.knightschess.R
 import com.oapps.knightschess.ui.chess.moveprovider.RandomMoveProvider
 import com.oapps.knightschess.ui.chess.theme.Image
 import com.oapps.lib.chess.*
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import android.R.attr.label
-
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Context
-import android.util.Log
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-
-import androidx.core.content.ContextCompat.getSystemService
-
-
 
 
 private val TAG = "ChessUI"
@@ -91,9 +92,9 @@ fun DynamicChessBoardPreview() {
  * For displaying static fen positions
  */
 @Composable
-fun StaticChessBoard(modifier: Modifier = Modifier, fen: String, whiteBottom: Boolean = true) {
-    ChessBox(modifier) {
-        ChessBackground()
+fun StaticChessBoard(modifier: Modifier = Modifier, fen: String, whiteBottom: Boolean = true, coordinates: Coordinates = Coordinates.None) {
+    ChessBox(modifier, coordinates = coordinates) {
+        ChessBackground(whiteBottom = whiteBottom, coordinates = coordinates)
         FENPiecesLayer(fen = fen, whiteBottom = whiteBottom)
     }
 }
@@ -105,6 +106,7 @@ fun DynamicChessBoard(
     whiteBottom: MutableState<Boolean> = remember {
         mutableStateOf(true)
     },
+    coordinates: Coordinates = Coordinates.Inside,
     images: Image = Image.Staunty,
 ) {
     // TODO: 4/26/21 account for pre moves
@@ -122,10 +124,10 @@ fun DynamicChessBoard(
             beforeMakeMove = {
                 Log.d(TAG, "DynamicChessBoard: before make move $it")
                 val san = MoveValidator.StandardValidator.sanForMove(it)
-                if(it.color.isWhite) {
+                if (it.color.isWhite) {
                     moves.add(san to "")
-                }else{
-                    if(moves.isEmpty()) moves.add("" to san)
+                } else {
+                    if (moves.isEmpty()) moves.add("" to san)
                     else {
                         val last = moves.last().first
                         moves.removeAt(moves.size - 1)
@@ -159,8 +161,8 @@ fun DynamicChessBoard(
 //    }
 
     Column {
-        ChessBox(modifier) {
-            ChessUI(gameManager, whiteBottom, images)
+        ChessBox(modifier, coordinates = coordinates) {
+            ChessUI(gameManager, whiteBottom, coordinates, images)
         }
         StaticChessBoard(fen = gameManager.fen, modifier = Modifier.fillMaxWidth(0.24f))
 
@@ -169,7 +171,7 @@ fun DynamicChessBoard(
             clipboard.setPrimaryClip(ClipData.newPlainText("fen", fullFen))
         })
         Column() {
-            for(it in moves){
+            for (it in moves) {
                 Text(it.first + "\t\t\t" + it.second)
             }
         }
@@ -181,6 +183,7 @@ fun DynamicChessBoard(
 private fun BoxWithConstraintsScope.ChessUI(
     gameManager: GameManager,
     whiteBottom: MutableState<Boolean>,
+    coordinates: Coordinates,
     images: Image,
 ) {
     val size = maxWidth / 8
@@ -202,7 +205,8 @@ private fun BoxWithConstraintsScope.ChessUI(
             val y = inp.y.toInt()
             userInputEvents.squareTapped(IVec(x, y))
         }
-    })
+    }, whiteBottom = whiteBottom.value, coordinates = coordinates)
+
     DynamicPieceLayer(
         gameManager.pieces,
         whiteBottom = whiteBottom.value,
@@ -245,7 +249,7 @@ fun BoxWithConstraintsScope.RequestPromotionPiece(
     val size = maxWidth / 8
     val shape = remember { RoundedCornerShape(4.dp) }
     Surface(
-        color = Color.White, elevation = 4.dp, shape = shape,
+        color = Color.White, elevation = 6.dp, shape = shape,
         modifier = Modifier.offset(
             x = (size * vecTo.x).transformX(whiteBottom.value, maxWidth * 7 / 8),
             y = if (color.isBlack xor whiteBottom.value.not())
@@ -387,33 +391,186 @@ private fun DynamicPieceImage(
     )
 }
 
-@Composable
-private fun ChessBox(
-    modifier: Modifier = Modifier,
-    content: @Composable BoxWithConstraintsScope.() -> Unit
-) {
-    BoxWithConstraints(modifier.aspectRatio(1f, false), content = content)
+enum class Coordinates{
+    Outside,
+    Inside,
+    None
 }
 
 @Composable
-private fun BoxWithConstraintsScope.ChessBackground(modifier: Modifier = Modifier) {
-    val blockSize = with(LocalDensity.current) { maxWidth.toPx() / 8 }
-    val shape = remember { RoundedCornerShape(1) }
-    fun isWhite(x: Int, y: Int) = (x + y) % 2 == 0
-    Surface(modifier.matchParentSize(), shape, elevation = 4.dp) {
-        Canvas(modifier = Modifier.matchParentSize()) {
-            for (x in 0..7) {
-                for (y in 0..7) {
-//                    val color = if (isWhite(x, y)) Color(0xFFD9D9FA) else Color(0xFF4949F5)
-                    val color = if (isWhite(x, y)) Color(0xFFF3F6FA) else Color(0xFF6472C0)
-                    drawRect(
-                        color,
-                        Offset(x * blockSize, y * blockSize),
-                        Size(blockSize, blockSize)
-                    )
+private fun ChessBox(
+    modifier: Modifier = Modifier,
+    whiteBottom: MutableState<Boolean> = remember { mutableStateOf(true) },
+    coordinates: Coordinates = Coordinates.None,
+    content: @Composable BoxWithConstraintsScope.() -> Unit
+) {
+    ConstraintLayout(constraintSet = remember(coordinates) {
+        ConstraintSet {
+            val chess = createRefFor("chess")
+            val files = createRefFor("files")
+            val ranks = createRefFor("ranks")
+
+            if(coordinates == Coordinates.Outside) {
+                constrain(ranks) {
+                    top.linkTo(chess.top)
+                    bottom.linkTo(chess.bottom)
+                    start.linkTo(parent.start)
+                    height = Dimension.fillToConstraints
+                }
+
+                constrain(chess) {
+                    top.linkTo(parent.top)
+                    end.linkTo(parent.end)
+                    start.linkTo(ranks.end)
+                    width = Dimension.fillToConstraints
+                }
+
+                constrain(files) {
+                    top.linkTo(chess.bottom)
+                    start.linkTo(chess.start)
+                    end.linkTo(chess.end)
+                    width = Dimension.fillToConstraints
+                }
+
+            } else{
+                constrain(chess) {
+                    top.linkTo(parent.top)
+                    end.linkTo(parent.end)
+                    start.linkTo(parent.start)
+                    width = Dimension.fillToConstraints
                 }
             }
         }
+    }, modifier) {
+        // actual chess box (must be square)
+        BoxWithConstraints(
+            Modifier
+                .layoutId("chess")
+                .aspectRatio(1f, false)
+                .onGloballyPositioned {
+                    Log.d(TAG, "ChessBox: chess is at ${it.positionInParent()}")
+                    Log.d(TAG, "ChessBox: size = ${it.size}")
+                },
+            content = content
+        )
+        if(coordinates == Coordinates.Outside) {
+            BoxWithConstraints(
+                Modifier
+                    .layoutId("files")
+                    .onGloballyPositioned {
+                        Log.d(TAG, "ChessBox: files is at ${it.positionInParent()}")
+                        Log.d(TAG, "ChessBox: size = ${it.size}")
+                    }
+            ) {
+                CoordinatesFile(whiteBottom = whiteBottom)
+            }
+            BoxWithConstraints(
+                Modifier
+                    .layoutId("ranks")
+                    .onGloballyPositioned {
+                        Log.d(TAG, "ChessBox: rank is at ${it.positionInParent()}")
+                        Log.d(TAG, "ChessBox: size = ${it.size}")
+                    }
+            ) {
+                CoordinatesRank(whiteBottom = whiteBottom)
+            }
+        }
+    }
+}
+
+@Composable
+private fun BoxWithConstraintsScope.ChessBackground(modifier: Modifier = Modifier, whiteBottom: Boolean, coordinates: Coordinates) {
+    val blockSize = with(LocalDensity.current) { maxWidth.toPx() / 8 }
+    val shape = remember { RoundedCornerShape(1) }
+    fun isWhite(x: Int, y: Int) = (x + y) % 2 == 0
+    val colors =  Color(0xFFF3F6FA) to Color(0xFF6472C0)
+    Surface(modifier.matchParentSize(), shape, elevation = 4.dp) {
+        BoxWithConstraints(Modifier.matchParentSize()){
+            Canvas(modifier = Modifier.matchParentSize()) {
+                for (x in 0..7) {
+                    for (y in 0..7) {
+//                    val color = if (isWhite(x, y)) Color(0xFFD9D9FA) else Color(0xFF4949F5)
+                        val color = if (isWhite(x, y)) colors.first else colors.second
+                        drawRect(
+                            color,
+                            Offset(x * blockSize, y * blockSize),
+                            Size(blockSize, blockSize)
+                        )
+                    }
+                }
+            }
+            if(coordinates == Coordinates.Inside){
+                InsideCoordinates(whiteBottom = whiteBottom, colors)
+            }
+        }
+    }
+}
+
+@Composable
+private fun BoxWithConstraintsScope.InsideCoordinates(whiteBottom: Boolean, colors: Pair<Color, Color>){
+    val fontSize = (maxWidth.value.sp / 36).let { if(it < 10.sp) 10.sp else it }
+
+    (if (whiteBottom) ('8' downTo '1') else ('1'..'8')).forEachIndexed { i, rank ->
+        Text(
+            text = "$rank",
+            lineHeight = fontSize,
+            fontSize = fontSize,
+            fontWeight = FontWeight.Bold,
+            color = if(i % 2 == 0) colors.second else colors.first,
+            textAlign = TextAlign.Start,
+            modifier = Modifier
+                .offset(0.dp, maxHeight / 8 * i)
+                .padding(start = 2.dp, top = 2.dp)
+        )
+    }
+
+    (if (whiteBottom) ('a'..'h') else ('h' downTo 'a')).forEachIndexed { i, file ->
+        Text(
+            text = "$file",
+            lineHeight = fontSize,
+            fontSize = fontSize,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.End,
+            color = if(i % 2 == 1) colors.second else colors.first,
+            modifier = Modifier
+                .width(maxWidth / 8)
+                .offset(maxWidth / 8 * i, maxHeight - with(LocalDensity.current){fontSize.toDp()} - 4.dp)
+                .padding(end = 4.dp)
+        )
+    }
+}
+
+@Composable
+private fun BoxWithConstraintsScope.CoordinatesRank(whiteBottom: MutableState<Boolean>) {
+    val fontSize = (maxHeight.value.sp / 36).let { if(it < 10.sp) 10.sp else it }
+    (if (whiteBottom.value) ('8' downTo '1') else ('1'..'8')).forEachIndexed { i, rank ->
+        Text(
+            text = "$rank",
+            lineHeight = fontSize,
+            fontSize = fontSize,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .offset(0.dp, maxHeight / 8 * (i + 0.5f) - 8.dp)
+                .padding(end = 4.dp)
+        )
+    }
+}
+
+@Composable
+private fun BoxWithConstraintsScope.CoordinatesFile(whiteBottom: MutableState<Boolean>) {
+    val fontSize = (maxWidth.value.sp / 36).let { if(it < 10.sp) 10.sp else it }
+    (if (whiteBottom.value) ('a'..'h') else ('h' downTo 'a')).forEachIndexed { i, file ->
+        Text(
+            text = "$file",
+            lineHeight = fontSize,
+            fontSize = fontSize,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .width(maxWidth / 8)
+                .offset(maxWidth / 8 * i, 0.dp)
+        )
     }
 }
 //
