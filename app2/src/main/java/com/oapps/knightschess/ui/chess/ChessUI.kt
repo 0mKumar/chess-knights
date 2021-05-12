@@ -92,13 +92,26 @@ fun DynamicChessBoardPreview() {
 @Composable
 fun StaticChessBoard(
     modifier: Modifier = Modifier,
-    fen: String,
+    fen: String = Chess.startPos,
     whiteBottom: Boolean = true,
     coordinates: Coordinates = Coordinates.None
 ) {
     ChessBox(modifier, coordinates = coordinates) {
         ChessBackground(whiteBottom = whiteBottom, coordinates = coordinates)
         FENPiecesLayer(fen = fen, whiteBottom = whiteBottom)
+    }
+}
+
+@Composable
+fun StaticChessBoard(
+    modifier: Modifier = Modifier,
+    pieces: PieceMap,
+    whiteBottom: Boolean = true,
+    coordinates: Coordinates = Coordinates.None
+) {
+    ChessBox(modifier, coordinates = coordinates) {
+        ChessBackground(whiteBottom = whiteBottom, coordinates = coordinates)
+        StaticPiecesLayer(pieces, whiteBottom = whiteBottom)
     }
 }
 
@@ -313,6 +326,14 @@ private val pieceName = mapOf(
 @Composable
 private fun BoxWithConstraintsScope.FENPiecesLayer(fen: String, whiteBottom: Boolean = true) {
     val pieces = remember(fen) { fromFen(fen) }
+    val size = maxWidth / 8
+    for (entry in pieces) {
+        StaticPieceImage(entry.value, size, whiteBottom)
+    }
+}
+
+@Composable
+private fun BoxWithConstraintsScope.StaticPiecesLayer(pieces: PieceMap, whiteBottom: Boolean = true) {
     val size = maxWidth / 8
     for (entry in pieces) {
         StaticPieceImage(entry.value, size, whiteBottom)

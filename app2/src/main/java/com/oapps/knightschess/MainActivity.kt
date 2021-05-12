@@ -36,17 +36,14 @@ class MainActivity : ComponentActivity() {
                         var name by remember { mutableStateOf(images.type) }
                         var ind by remember { mutableStateOf(0) }
                         var coordinates by remember { mutableStateOf(Coordinates.Inside) }
-//                        CoordinateSelection{
-//                            coordinates = it
-//                        }
-                        Button(onClick = { coordinates = if(coordinates == Coordinates.Inside) Coordinates.Outside else Coordinates.Inside}) {
-                            Text(text = "Inside/Outside")
+                        CoordinateSelection{
+                            coordinates = it
                         }
                         val whiteBottom = mutableStateOf(true)
                         Button(onClick = { whiteBottom.value = !whiteBottom.value }) {
                             Text(text = "Flip")
                         }
-                        DynamicChessBoard(modifier = Modifier.fillMaxWidth(0.99f), images = images, coordinates = coordinates, whiteBottom = whiteBottom)
+                        DynamicChessBoard(modifier = Modifier.fillMaxWidth(), images = images, coordinates = coordinates, whiteBottom = whiteBottom)
                         Button(onClick = {
                             Log.d(TAG, "onCreate: $ind")
                             ind++
