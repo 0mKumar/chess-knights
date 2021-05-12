@@ -4,10 +4,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.util.Log
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -39,6 +36,7 @@ import androidx.compose.ui.unit.sp
 import androidx.constraintlayout.compose.ConstraintLayout
 import androidx.constraintlayout.compose.ConstraintSet
 import androidx.constraintlayout.compose.Dimension
+import androidx.constraintlayout.solver.widgets.Optimizer
 import com.oapps.knightschess.R
 import com.oapps.knightschess.ui.chess.moveprovider.RandomMoveProvider
 import com.oapps.knightschess.ui.chess.theme.Image
@@ -92,7 +90,12 @@ fun DynamicChessBoardPreview() {
  * For displaying static fen positions
  */
 @Composable
-fun StaticChessBoard(modifier: Modifier = Modifier, fen: String, whiteBottom: Boolean = true, coordinates: Coordinates = Coordinates.None) {
+fun StaticChessBoard(
+    modifier: Modifier = Modifier,
+    fen: String,
+    whiteBottom: Boolean = true,
+    coordinates: Coordinates = Coordinates.None
+) {
     ChessBox(modifier, coordinates = coordinates) {
         ChessBackground(whiteBottom = whiteBottom, coordinates = coordinates)
         FENPiecesLayer(fen = fen, whiteBottom = whiteBottom)
@@ -119,7 +122,7 @@ fun DynamicChessBoard(
         GameManager(
             coroutineScope,
             chess,
-            player1 = AutomaticPlayer(true, RandomMoveProvider(), 0),
+            player1 = ManualPlayer(true),
             player2 = AutomaticPlayer(false, RandomMoveProvider(), 0),
             beforeMakeMove = {
                 Log.d(TAG, "DynamicChessBoard: before make move $it")
@@ -161,7 +164,7 @@ fun DynamicChessBoard(
 //    }
 
     Column {
-        ChessBox(modifier, coordinates = coordinates) {
+        ChessBox(modifier, coordinates = coordinates, whiteBottom = whiteBottom) {
             ChessUI(gameManager, whiteBottom, coordinates, images)
         }
         StaticChessBoard(fen = gameManager.fen, modifier = Modifier.fillMaxWidth(0.24f))
@@ -391,7 +394,7 @@ private fun DynamicPieceImage(
     )
 }
 
-enum class Coordinates{
+enum class Coordinates {
     Outside,
     Inside,
     None
@@ -404,44 +407,41 @@ private fun ChessBox(
     coordinates: Coordinates = Coordinates.None,
     content: @Composable BoxWithConstraintsScope.() -> Unit
 ) {
-    ConstraintLayout(constraintSet = remember(coordinates) {
+    val constraintSet = remember(coordinates != Coordinates.Outside) {
         ConstraintSet {
             val chess = createRefFor("chess")
             val files = createRefFor("files")
             val ranks = createRefFor("ranks")
 
-            if(coordinates == Coordinates.Outside) {
-                constrain(ranks) {
-                    top.linkTo(chess.top)
-                    bottom.linkTo(chess.bottom)
-                    start.linkTo(parent.start)
-                    height = Dimension.fillToConstraints
+            constrain(ranks) {
+                top.linkTo(chess.top)
+                bottom.linkTo(chess.bottom)
+                start.linkTo(parent.start)
+                if(coordinates != Coordinates.Outside){
+                    width = Dimension.preferredValue(0.dp)
                 }
+                height = Dimension.fillToConstraints
+            }
 
-                constrain(chess) {
-                    top.linkTo(parent.top)
-                    end.linkTo(parent.end)
-                    start.linkTo(ranks.end)
-                    width = Dimension.fillToConstraints
-                }
+            constrain(chess) {
+                top.linkTo(parent.top)
+                end.linkTo(parent.end)
+                start.linkTo(ranks.end)
+                width = Dimension.fillToConstraints
+            }
 
-                constrain(files) {
-                    top.linkTo(chess.bottom)
-                    start.linkTo(chess.start)
-                    end.linkTo(chess.end)
-                    width = Dimension.fillToConstraints
-                }
-
-            } else{
-                constrain(chess) {
-                    top.linkTo(parent.top)
-                    end.linkTo(parent.end)
-                    start.linkTo(parent.start)
-                    width = Dimension.fillToConstraints
-                }
+            constrain(files) {
+                top.linkTo(chess.bottom)
+                start.linkTo(chess.start)
+                end.linkTo(chess.end)
+                width = Dimension.fillToConstraints
             }
         }
-    }, modifier) {
+    }
+    ConstraintLayout(
+        constraintSet = constraintSet,
+        modifier,
+    ) {
         // actual chess box (must be square)
         BoxWithConstraints(
             Modifier
@@ -453,39 +453,46 @@ private fun ChessBox(
                 },
             content = content
         )
-        if(coordinates == Coordinates.Outside) {
-            BoxWithConstraints(
-                Modifier
-                    .layoutId("files")
-                    .onGloballyPositioned {
-                        Log.d(TAG, "ChessBox: files is at ${it.positionInParent()}")
-                        Log.d(TAG, "ChessBox: size = ${it.size}")
-                    }
-            ) {
+        BoxWithConstraints(
+            Modifier
+                .layoutId("files")
+                .onGloballyPositioned {
+                    Log.d(TAG, "ChessBox: files is at ${it.positionInParent()}")
+                    Log.d(TAG, "ChessBox: size = ${it.size}")
+                }
+        ) {
+            if (coordinates == Coordinates.Outside) {
                 CoordinatesFile(whiteBottom = whiteBottom)
             }
-            BoxWithConstraints(
-                Modifier
-                    .layoutId("ranks")
-                    .onGloballyPositioned {
-                        Log.d(TAG, "ChessBox: rank is at ${it.positionInParent()}")
-                        Log.d(TAG, "ChessBox: size = ${it.size}")
-                    }
-            ) {
+        }
+        BoxWithConstraints(
+            Modifier
+                .layoutId("ranks")
+                .onGloballyPositioned {
+                    Log.d(TAG, "ChessBox: rank is at ${it.positionInParent()}")
+                    Log.d(TAG, "ChessBox: size = ${it.size}")
+                }
+        ) {
+            if (coordinates == Coordinates.Outside) {
                 CoordinatesRank(whiteBottom = whiteBottom)
             }
         }
+
     }
 }
 
 @Composable
-private fun BoxWithConstraintsScope.ChessBackground(modifier: Modifier = Modifier, whiteBottom: Boolean, coordinates: Coordinates) {
+private fun BoxWithConstraintsScope.ChessBackground(
+    modifier: Modifier = Modifier,
+    whiteBottom: Boolean,
+    coordinates: Coordinates
+) {
     val blockSize = with(LocalDensity.current) { maxWidth.toPx() / 8 }
     val shape = remember { RoundedCornerShape(1) }
     fun isWhite(x: Int, y: Int) = (x + y) % 2 == 0
-    val colors =  Color(0xFFF3F6FA) to Color(0xFF6472C0)
+    val colors = Color(0xFFF3F6FA) to Color(0xFF6472C0)
     Surface(modifier.matchParentSize(), shape, elevation = 4.dp) {
-        BoxWithConstraints(Modifier.matchParentSize()){
+        BoxWithConstraints(Modifier.matchParentSize()) {
             Canvas(modifier = Modifier.matchParentSize()) {
                 for (x in 0..7) {
                     for (y in 0..7) {
@@ -499,7 +506,7 @@ private fun BoxWithConstraintsScope.ChessBackground(modifier: Modifier = Modifie
                     }
                 }
             }
-            if(coordinates == Coordinates.Inside){
+            if (coordinates == Coordinates.Inside) {
                 InsideCoordinates(whiteBottom = whiteBottom, colors)
             }
         }
@@ -507,8 +514,11 @@ private fun BoxWithConstraintsScope.ChessBackground(modifier: Modifier = Modifie
 }
 
 @Composable
-private fun BoxWithConstraintsScope.InsideCoordinates(whiteBottom: Boolean, colors: Pair<Color, Color>){
-    val fontSize = (maxWidth.value.sp / 36).let { if(it < 10.sp) 10.sp else it }
+private fun BoxWithConstraintsScope.InsideCoordinates(
+    whiteBottom: Boolean,
+    colors: Pair<Color, Color>
+) {
+    val fontSize = (maxWidth.value.sp / 36).let { if (it < 10.sp) 10.sp else it }
 
     (if (whiteBottom) ('8' downTo '1') else ('1'..'8')).forEachIndexed { i, rank ->
         Text(
@@ -516,7 +526,7 @@ private fun BoxWithConstraintsScope.InsideCoordinates(whiteBottom: Boolean, colo
             lineHeight = fontSize,
             fontSize = fontSize,
             fontWeight = FontWeight.Bold,
-            color = if(i % 2 == 0) colors.second else colors.first,
+            color = if (i % 2 == 0) colors.second else colors.first,
             textAlign = TextAlign.Start,
             modifier = Modifier
                 .offset(0.dp, maxHeight / 8 * i)
@@ -531,10 +541,12 @@ private fun BoxWithConstraintsScope.InsideCoordinates(whiteBottom: Boolean, colo
             fontSize = fontSize,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.End,
-            color = if(i % 2 == 1) colors.second else colors.first,
+            color = if (i % 2 == 1) colors.second else colors.first,
             modifier = Modifier
                 .width(maxWidth / 8)
-                .offset(maxWidth / 8 * i, maxHeight - with(LocalDensity.current){fontSize.toDp()} - 4.dp)
+                .offset(
+                    maxWidth / 8 * i,
+                    maxHeight - with(LocalDensity.current) { fontSize.toDp() } - 4.dp)
                 .padding(end = 4.dp)
         )
     }
@@ -542,7 +554,7 @@ private fun BoxWithConstraintsScope.InsideCoordinates(whiteBottom: Boolean, colo
 
 @Composable
 private fun BoxWithConstraintsScope.CoordinatesRank(whiteBottom: MutableState<Boolean>) {
-    val fontSize = (maxHeight.value.sp / 36).let { if(it < 10.sp) 10.sp else it }
+    val fontSize = (maxHeight.value.sp / 36).let { if (it < 10.sp) 10.sp else it }
     (if (whiteBottom.value) ('8' downTo '1') else ('1'..'8')).forEachIndexed { i, rank ->
         Text(
             text = "$rank",
@@ -559,7 +571,7 @@ private fun BoxWithConstraintsScope.CoordinatesRank(whiteBottom: MutableState<Bo
 
 @Composable
 private fun BoxWithConstraintsScope.CoordinatesFile(whiteBottom: MutableState<Boolean>) {
-    val fontSize = (maxWidth.value.sp / 36).let { if(it < 10.sp) 10.sp else it }
+    val fontSize = (maxWidth.value.sp / 36).let { if (it < 10.sp) 10.sp else it }
     (if (whiteBottom.value) ('a'..'h') else ('h' downTo 'a')).forEachIndexed { i, file ->
         Text(
             text = "$file",
